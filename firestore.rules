@@ -1,0 +1,36 @@
+rules_version = '2';
+
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function changed() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    match /drivers/{driverId} {
+      allow read: if true;
+      allow create: if request.resource.data.approvalStatus == 'pending'
+                    && request.resource.data.balance == 0;
+      // El saldo solo baja desde la app: el cobro en efectivo descuenta la
+      // comisión. Lo que lo sube (un pago con Mercado Pago) lo escribe el
+      // backend con firebase-admin, que no pasa por estas reglas.
+      allow update: if !changed().hasAny(['approvalStatus', 'createdAt'])
+                    && (!changed().hasAny(['balance'])
+                        || request.resource.data.balance < resource.data.balance);
+      allow delete: if false;
+    }
+
+    match /trips/{tripId} {
+      allow read: if true;
+      allow create: if request.resource.data.status == 'requested'
+                    && request.resource.data.paymentStatus == null;
+      allow update: if !changed().hasAny(['paymentId', 'preferenceId', 'driverId'])
+                    && (!changed().hasAny(['paymentStatus'])
+                        || request.resource.data.paymentStatus == 'cash')
+                    && (!changed().hasAny(['status'])
+                        || request.resource.data.status != 'paid'
+                        || request.resource.data.paymentStatus == 'cash');
+      allow delete: if false;
+    }
+  }
+}
