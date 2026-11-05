@@ -43,7 +43,7 @@ export default function DateField({ label, value, onChange, onBlur, error, initi
           value={value || initialDate || new Date()}
           mode="date"
           display={Platform.OS === 'ios' ? 'inline' : 'default'}
-          onChange={handleValueChange}
+          onValueChange={handleValueChange}
           onDismiss={handleDismiss}
           minimumDate={minimumDate}
           maximumDate={maximumDate}

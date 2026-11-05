@@ -1,0 +1,70 @@
+import {
+  collection,
+  doc,
+  getDocFromServer,
+  onSnapshot,
+  serverTimestamp,
+  setDoc,
+} from 'firebase/firestore';
+import { db } from '../config/firebase';
+import { COMMISSION_RATE } from '../config/pricing';
+import { withTimeout } from './withTimeout';
+
+const drivers = collection(db, 'drivers');
+
+// El id del conductor se genera en el teléfono antes de escribir y se conserva
+// entre reintentos. Antes de reintentar uso driverExists: si el conductor ya
+// existe, no llamo otra vez a createDriver, porque escribir de nuevo el mismo
+// id es una actualización que cambia createdAt y las reglas la rechazan.
+export function newDriverId() {
+  return doc(drivers).id;
+}
+
+// Crea el conductor en estado pendiente. Su id pasa a ser la sesión del
+// teléfono (D-04).
+// `profile` es el documento ya armado con lo que escribió el conductor:
+// fullName, documentNumber, phone, email, gender, birthDate, photoUrl, vehicle,
+// documents y mercadoPagoEmail (Diseño, sección 6). Las fotos van como URL de
+// Cloudinary, no como la ruta local del teléfono. Los campos del sistema los
+// pongo aquí, después del spread, para que `profile` no los pise: las reglas
+// exigen approvalStatus 'pending' y balance 0 al crear.
+export async function createDriver(driverId, profile) {
+  await withTimeout(
+    setDoc(doc(drivers, driverId), {
+      ...profile,
+      approvalStatus: 'pending',
+      balance: 0,
+      isAvailable: false,
+      location: null,
+      fcmToken: null,
+      commissionRateAccepted: COMMISSION_RATE,
+      termsAcceptedAt: serverTimestamp(),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
+  );
+}
+
+// Pregunta al servidor, no a la caché, si el conductor ya quedó guardado. Sirve
+// en un reintento: una escritura que pasó del tiempo límite pudo llegar después.
+// También la uso si createDriver falla con permission-denied después de un
+// timeout: el conductor probablemente ya existe. Si esta función lanza un error
+// (también el 'timeout'), no sé si existe y no lo tomo como "no existe".
+export async function driverExists(driverId) {
+  const snapshot = await withTimeout(getDocFromServer(doc(drivers, driverId)));
+  return snapshot.exists();
+}
+
+// Escucha el documento del conductor en tiempo real. `onChange` recibe el
+// conductor (o null si no existe) y si el dato viene de la caché del teléfono.
+// Devuelve la función que corta la escucha, para el return del useEffect.
+export function subscribeToDriver(driverId, onChange, onError) {
+  return onSnapshot(
+    doc(drivers, driverId),
+    (snapshot) => {
+      const driver = snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } : null;
+      onChange(driver, snapshot.metadata.fromCache);
+    },
+    onError
+  );
+}
