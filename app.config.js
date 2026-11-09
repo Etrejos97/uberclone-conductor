@@ -1,4 +1,5 @@
 // Extiende app.json con el package de Android y los plugins nativos.
+// El mapa es Leaflet dentro de un WebView, así que no hay llave de Google.
 export default ({ config }) => ({
   ...config,
   android: {
@@ -6,6 +7,13 @@ export default ({ config }) => ({
     package: 'com.edison.uberconductor',
   },
   plugins: [
+    [
+      'expo-location',
+      {
+        locationWhenInUsePermission:
+          'La app usa tu ubicación para mostrarte en el mapa y recibir viajes cercanos.',
+      },
+    ],
     [
       'expo-image-picker',
       {
