@@ -6,7 +6,9 @@ import {
   MIN_DRIVER_AGE,
   MIN_VEHICLE_YEAR,
   NAME_MAX_LENGTH,
+  PAYMENT_METHODS,
   SHORT_TEXT_MAX_LENGTH,
+  SIMULATOR_PLACES,
   SOAT_VALIDITY_YEARS,
   TECH_REVIEW_FROM_YEARS,
   VEHICLE_COLORS,
@@ -32,7 +34,7 @@ function isValidDate(value) {
   return value instanceof Date && !Number.isNaN(value.getTime());
 }
 
-// las fotos de documentos: basta con que haya una imagen elegida.
+// y las fotos de documentos: basta con que haya una imagen elegida.
 export function validatePhoto(uri) {
   return isBlank(uri) ? 'errors.photoRequired' : null;
 }
@@ -189,5 +191,31 @@ export function validateRegistration(values, today = new Date()) {
     errors.techInspectionExpiresAt = validateExpiryDate(values.techInspectionExpiresAt, today);
   }
 
+  return Object.fromEntries(Object.entries(errors).filter(([, error]) => error !== null));
+}
+
+// Cliente simulado. La propina es opcional: vacía cuenta como 0, y si la
+// escriben debe ser un número entero de pesos.
+export function validateTip(value) {
+  if (isBlank(value)) return null;
+  const text = String(value).trim();
+  if (!/^\d+$/.test(text)) return 'errors.tipInvalid';
+  // La especificación no fija un máximo. Este es el límite de JavaScript: por
+  // encima, Number() redondea y la propina guardada no sería la escrita.
+  return Number.isSafeInteger(Number(text)) ? null : 'errors.tipTooLarge';
+}
+
+export function validateSimulatedTrip(values) {
+  const placeIds = SIMULATOR_PLACES.map((place) => place.id);
+  const errors = {
+    origin: validateOption(values.origin, placeIds),
+    destination: validateOption(values.destination, placeIds),
+    category: validateCategory(values.category),
+    paymentMethod: validateOption(values.paymentMethod, PAYMENT_METHODS),
+    tip: validateTip(values.tip),
+  };
+  if (!errors.origin && !errors.destination && values.origin === values.destination) {
+    errors.destination = 'errors.sameDestination';
+  }
   return Object.fromEntries(Object.entries(errors).filter(([, error]) => error !== null));
 }
