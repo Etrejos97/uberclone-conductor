@@ -52,7 +52,7 @@ export default function PersonalDataScreen() {
         autoComplete="email"
         {...field('email')}
       />
-      {/*el idioma es una preferencia del teléfono, no va a Firestore. */}
+      {/* El idioma es una preferencia del teléfono, no va a Firestore. */}
       <SelectField
         label={t('settings.language')}
         placeholder={t('common.select')}

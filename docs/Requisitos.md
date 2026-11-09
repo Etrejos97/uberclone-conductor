@@ -91,7 +91,7 @@ Prioridad: **Alta** si la app no cumple su propósito sin él, **Media** si el f
 |---|---|---|
 | RF-21 | Para cobrar con Mercado Pago, la app envía el `tripId` y el monto al backend, el backend crea la preferencia de pago, la app abre Checkout Pro y el cliente simulado paga con una tarjeta de prueba. | Alta |
 | RF-22 | Cuando Mercado Pago devuelve a la URL de retorno, el backend consulta el pago en Mercado Pago y guarda `paymentStatus`, `paymentId` y `status: paid` en el viaje. | Alta |
-| RF-23 | En pago en efectivo, el conductor marca el cobro como recibido y el viaje pasa a `paid`. | Alta |
+| RF-23 | En pago en efectivo, el conductor marca el cobro como recibido y el viaje pasa a `paid`. Si Mercado Pago rechazó el pago, el conductor también puede cobrarlo en efectivo y el viaje queda como pago en efectivo. | Alta |
 | RF-24 | La pantalla de cobro muestra tarifa final, comisión, ganancia neta y estado del pago (Aprobado, Pendiente, Rechazado o Efectivo), y se actualiza en tiempo real. | Alta |
 | RF-25 | Después del pago, el cliente simulado califica el viaje de 1 a 5 y el viaje guarda el `rating`. | Media |
 
@@ -152,12 +152,12 @@ Prioridad: **Alta** si la app no cumple su propósito sin él, **Media** si el f
 | VA-09 | Categoría | Económico, XL o Premium. |
 | VA-10 | Placa | Formato ABC123; la paso a mayúsculas antes de validar. |
 | VA-11 | Marca y modelo | Texto, máximo 30 caracteres cada uno. |
-| VA-12 | Año | 4 dígitos, no mayor al año actual. |
+| VA-12 | Año | 4 dígitos, desde 2010 y no mayor al año actual. |
 | VA-13 | Color | Lista desplegable. |
-| VA-14 | Capacidad | Numérica; XL exige mínimo 6. |
+| VA-14 | Capacidad | Entero según la categoría: Económico y Premium exigen 4, XL de 6 a 8. |
 | VA-15 | Foto del vehículo | Obligatoria; debe verse la placa. |
 | VA-16 | Licencia | Número de 6 a 10 dígitos (en Colombia es el de la cédula), foto y vencimiento posterior a hoy. |
-| VA-17 | SOAT | Foto; vencimiento posterior a hoy. |
+| VA-17 | SOAT | Foto; vencimiento posterior a hoy y como máximo un año después del día anterior al registro, que es lo que dura un SOAT comprado ese día. |
 | VA-18 | Revisión técnico-mecánica | Foto y vencimiento posterior a hoy. La pido cuando el vehículo tiene 5 años o más contados desde el año del modelo (Ley 769 de 2002, art. 52, para carros particulares). |
 | VA-19 | Correo de Mercado Pago | Formato de correo válido. |
 | VA-20 | Términos | Checkbox obligatorio, con el porcentaje de comisión visible. |
@@ -192,6 +192,7 @@ Como conductor quiero registrar mis datos, mi vehículo y mis documentos para qu
 - Si dejo vacío el nombre y paso a otro campo, veo el error debajo del nombre y ningún `Alert`.
 - Con la placa `abc123` el campo queda válido y se guarda `ABC123`.
 - Con categoría XL y capacidad 4, veo un error en capacidad y "Enviar registro" sigue deshabilitado.
+- Con categoría Económico y capacidad 5, veo el mismo error. Con capacidad 4 el campo queda válido.
 - Con una fecha de nacimiento de hace 17 años, el campo muestra un error.
 - Con las tres pestañas válidas se habilita el botón, y al enviar veo "Pendiente de aprobación".
 

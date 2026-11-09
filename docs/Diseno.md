@@ -83,6 +83,7 @@ uberclone-conductor/
 ├── app.config.js               # Config de Expo, package de Android y plugins
 ├── .env.example                # Variables EXPO_PUBLIC_* sin valores
 ├── firestore.rules             # Reglas de seguridad versionadas
+├── firestore.indexes.json      # Los dos índices compuestos de la sección 6
 ├── src/
 │   ├── config/
 │   │   ├── pricing.js          # RN-04: base, km, min, mínima, multiplicadores, comisión
@@ -93,7 +94,9 @@ uberclone-conductor/
 │   │   ├── tripStateMachine.js # Transiciones permitidas (RN-09)
 │   │   ├── validators.js       # VA-01 a VA-20, devuelven una clave de error o null
 │   │   ├── dateRanges.js       # Hoy, semana (lunes a domingo), mes, rango
-│   │   └── driverProfile.js    # Formulario validado + URL de fotos → documento del conductor
+│   │   ├── earnings.js         # Saldo y resumen de un periodo: viajes, facturado, comisiones, propinas, neto, promedio
+│   │   ├── driverProfile.js    # Formulario validado + URL de fotos → documento del conductor
+│   │   └── payment.js          # Monto a cobrar, estado del pago, errores del backend, calificación
 │   ├── services/
 │   │   ├── driverService.js    # CRUD de drivers en Firestore
 │   │   ├── tripService.js      # CRUD y transiciones de trips en Firestore
@@ -106,8 +109,11 @@ uberclone-conductor/
 │   │   ├── useDriverLocation.js
 │   │   ├── useTripRequests.js
 │   │   ├── useActiveTrip.js
+│   │   ├── useTripProgress.js  # Ruta de recogida y cambios de etapa del viaje
+│   │   ├── usePayment.js       # Checkout, verificar pago, efectivo y calificación
 │   │   ├── useEarnings.js
 │   │   ├── useTripHistory.js
+│   │   ├── useTrip.js          # Un viaje del historial, para el detalle
 │   │   └── useCountdown.js
 │   ├── context/
 │   │   ├── SessionContext.js   # driverId + documento del conductor en tiempo real
@@ -122,7 +128,7 @@ uberclone-conductor/
 │   ├── screens/                # Una carpeta por módulo: registration, home, trip, payment...
 │   ├── components/             # FormField, SelectField, DateField, CheckboxField, PhotoPicker,
 │   │                           # FieldError, FormScrollView, formStyles, RequestCard, RouteMap, StatusBadge,
-│   │                           # EmptyState, ErrorState, LoadingState
+│   │                           # EmptyState, ErrorState, LoadingState, InfoRow
 │   └── i18n/
 │       ├── es.js
 │       ├── en.js
@@ -130,6 +136,7 @@ uberclone-conductor/
 └── backend/
     ├── package.json
     ├── .env.example
+    ├── test/                   # node --test, con Mercado Pago y Firestore de mentira
     └── src/
         ├── index.js            # Express, rutas, manejador de errores
         ├── routes/
@@ -155,7 +162,8 @@ uberclone-conductor/
 flowchart TD
     Root{RootNavigator<br/>¿hay driverId en AsyncStorage?}
     Root -- no --> Reg[RegistrationTabs]
-    Root -- sí --> Drawer[MainDrawer]
+    Root -- "sí, sin viaje activo" --> Drawer[MainDrawer]
+    Root -- "sí, con viaje activo" --> Trip[TripStack]
     Reg --> T1[Datos personales]
     Reg --> T2[Vehículo]
     Reg --> T3[Documentos y pagos]
@@ -166,13 +174,12 @@ flowchart TD
     Drawer --> Sett[Configuración]
     Drawer --> Sim[Cliente simulado]
     Hist --> HL[Lista] --> HD[Detalle del viaje]
-    Home -- "viaje activo" --> Trip[TripStack]
     Trip --> TR[Viaje en curso] --> Pay[Cobro]
 ```
 
 - **RootNavigator** decide con `SessionContext`. Mientras lee AsyncStorage muestra una pantalla de carga, para no mostrar el registro un instante a un conductor que ya tiene sesión.
 - **RegistrationTabs** (RF-01): las tres pestañas comparten `RegistrationContext`. El botón "Enviar registro" está en las tres, y se habilita con un `useMemo` que valida el formulario completo (RF-03).
-- **TripStack** se abre sobre el Drawer cuando `useActiveTrip` encuentra un viaje en `accepted`, `driver_arriving`, `in_progress` o `completed`. Si el conductor cierra la app a mitad de un viaje, al abrirla vuelve al viaje: la navegación sale del estado guardado en Firestore, no de la memoria.
+- **TripStack** reemplaza al Drawer mientras `useActiveTrip` encuentra un viaje en `accepted`, `driver_arriving`, `in_progress` o `completed`, o uno `paid` sin calificar. Si el conductor cierra la app a mitad de un viaje, al abrirla vuelve al viaje: la navegación sale del estado guardado en Firestore, no de la memoria. Con `completed` o `paid` muestra Cobro y antes, Viaje en curso. Si el viaje saliera de la consulta al pagarse, Cobro desaparecería antes de mostrar "Aprobado" y de pedir la calificación (RF-24, RF-25). Calificar cierra el viaje y devuelve al Drawer. Mientras busca el viaje, `RootNavigator` muestra la carga. Si hay dos viajes activos, atiende primero el que aceptó antes.
 - **Cliente simulado** es una pantalla del Drawer (D-01). Elige origen y destino de una lista de puntos fijos de Medellín, categoría, método de pago y propina. Desde la pantalla de Cobro abre el checkout y califica.
 
 ## 6. Modelo de datos
@@ -195,7 +202,6 @@ erDiagram
         string approvalStatus
         bool isAvailable
         map location
-        number balance
         string fcmToken
         timestamp createdAt
     }
@@ -238,7 +244,6 @@ erDiagram
 | `approvalStatus` | string | `pending`, `approved`, `rejected`. Solo lo cambia el aprobador desde la consola |
 | `isAvailable` | bool | |
 | `location` | map | `latitude`, `longitude`, `updatedAt` |
-| `balance` | number | Pesos enteros. Solo cambia con `increment()` |
 | `fcmToken` | string o null | Solo existe en el APK |
 | `createdAt`, `updatedAt` | timestamp | `serverTimestamp()` |
 
@@ -278,11 +283,13 @@ La consulta de solicitudes (`driverId ==` y `status == 'requested'`) solo usa ig
 | Hook | Consulta | Tipo |
 |---|---|---|
 | `useTripRequests` | `driverId == id`, `status == 'requested'` | `onSnapshot` |
-| `useActiveTrip` | `driverId == id`, `status in [accepted, driver_arriving, in_progress, completed]` | `onSnapshot` |
-| `useEarnings` | `driverId == id`, `status == 'paid'`, `completedAt >= inicio` (el inicio de la semana o del mes, el que sea anterior) | `onSnapshot` |
+| `useActiveTrip` | `driverId == id`, `status in [accepted, driver_arriving, in_progress, completed, paid]`, `rating == null` | `onSnapshot` |
+| `useEarnings` | `driverId == id`, `status == 'paid'` | `onSnapshot` |
 | `useTripHistory` | `driverId == id`, `status == 'paid'`, rango y método opcionales, `orderBy completedAt desc`, `limit 20`, `startAfter(último)` | `getDocs` por página |
 
-El historial y las ganancias muestran solo viajes `paid`: los rechazados y cancelados no movieron dinero. El saldo se guarda en el conductor y no se calcula, porque calcularlo obligaría a leer todos los viajes de su historia.
+El historial y las ganancias muestran solo viajes `paid`: los rechazados y cancelados no movieron dinero. Como todos están pagados, la etiqueta de cada viaje dice con qué se pagó («Efectivo» o «M. Pago») en vez del estado del pago. El saldo no se guarda en el conductor. `computeBalance` lo calcula con todos sus viajes pagados: suma `driverEarnings` de los que se pagaron con Mercado Pago y resta la `commission` de los que se pagaron en efectivo (RF-27). Si un viaje sale de Firestore, el saldo cambia en la siguiente lectura. A cambio, la escucha trae todos los viajes pagados del conductor y no solo los del mes.
+
+En el resumen, facturado es la suma de `fare` sin propina, la ganancia neta suma `driverEarnings` y el promedio es la ganancia neta entre el número de viajes. La consulta de `useEarnings` solo usa igualdades y no necesita índice compuesto. El historial vuelve a pedir la primera página cuando el conductor entra desde el menú, y no cuando vuelve del detalle, para no perder las páginas que ya bajó.
 
 ### Presupuesto del plan gratuito
 
@@ -333,6 +340,8 @@ Valida la entrada: distancia y duración no negativas, categoría conocida y pro
 
 El monto que paga el pasajero es `fare + tip`. La comisión sale solo de la tarifa.
 
+Al finalizar, `finalCharges(trip)` llama a `calculateFare` con la distancia y la duración de `route` (origen a destino), la categoría y la propina del viaje, y agrega `commissionRate` (RF-19, RN-07). Por eso la tarifa final coincide con la estimación mientras `config/pricing.js` no cambie entre las dos.
+
 Casos que la función debe cumplir, sacados de las historias de usuario:
 
 | Entrada | Salida esperada |
@@ -352,7 +361,7 @@ Base: `EXPO_PUBLIC_API_URL`. Todas las respuestas son JSON salvo `/payments/retu
 | Método y ruta | Entrada | Respuesta correcta | Errores |
 |---|---|---|---|
 | `GET /health` | | `200 { "status": "ok" }` | |
-| `POST /payments/preference` | `{ tripId, amount }` | `201 { preferenceId, checkoutUrl }` | `400` datos inválidos, `404` viaje no existe, `409` el viaje no está `completed`, ya está pagado o `amount` no es `fare + tip`, `502` Mercado Pago falló |
+| `POST /payments/preference` | `{ tripId, amount }` | `201 { preferenceId, checkoutUrl }` | `400` datos inválidos, `404` viaje no existe, `409` el viaje no está `completed`, ya está pagado, se cobra en efectivo o `amount` no es `fare + tip`, `502` Mercado Pago falló |
 | `GET /payments/return` | Query de Mercado Pago (`payment_id`, `external_reference`) | `200` HTML: "Pago recibido, vuelve a la app" | El HTML dice que el pago quedó pendiente de verificar |
 | `POST /payments/webhook` | Notificación de Mercado Pago | `200` en cuanto confirma | `500` si falla, para que Mercado Pago reintente |
 | `POST /payments/sync` | `{ tripId }` | `200 { paymentStatus }` | `404`, `502` |
@@ -360,7 +369,9 @@ Base: `EXPO_PUBLIC_API_URL`. Todas las respuestas son JSON salvo `/payments/retu
 
 **Por qué la app envía `amount` si el backend puede leerlo:** el backend no confía en ese número. Lee el viaje con `firebase-admin` y rechaza con `409` si no coincide con `fare + tip`. El campo sirve para detectar que la app y Firestore no están de acuerdo antes de cobrar.
 
-**`/payments/sync`** busca en Mercado Pago los pagos con `external_reference = tripId` y aplica la misma confirmación. Cubre dos casos: el pasajero cerró el navegador antes del retorno, o el backend corre en mi PC, donde Mercado Pago no puede llamar el webhook. La pantalla de Cobro tiene el botón "Verificar pago" que la llama.
+**`/payments/sync`** busca en Mercado Pago los pagos con `external_reference = tripId` y aplica la misma confirmación. Si no hay uno aprobado pero sí uno en proceso, responde `pending` sin escribir. Cubre dos casos: el pasajero cerró el navegador antes del retorno, o el backend corre en mi PC, donde Mercado Pago no puede llamar el webhook. Cobro la llama sola cuando el pasajero vuelve a la app desde el checkout (`AppState` pasa a `active`), y también con el botón "Verificar pago". `/payments/preference` hace la misma búsqueda cuando el viaje tiene un cobro `pending`: si encuentra un pago aprobado, lo aplica y responde `409` en lugar de abrir otro checkout, para no cobrarle dos veces al pasajero que pagó y tocó "Pagar" otra vez.
+
+**`PUBLIC_BASE_URL`** define las direcciones que le paso a Mercado Pago para el retorno y el webhook. Solo las envío si la URL empieza por `https://`, porque Mercado Pago no acepta `localhost`. Sin ella, el pago se confirma con "Verificar pago".
 
 **`/trips/simulate`** existe para crear una solicitud desde Postman con la app en segundo plano y probar la notificación (D-08). La cabecera con una llave del `.env` evita que cualquiera que conozca la URL de Render llene Firestore de viajes.
 
@@ -409,7 +420,7 @@ sequenceDiagram
 - **Varias solicitudes a la vez:** Inicio muestra todas las pendientes como tarjetas, de la más antigua a la más nueva, cada una con su tarifa, su reloj y sus botones Aceptar y Rechazar. El mapa dibuja la ruta de la tarjeta que el conductor toca, o la de la más antigua.
 - **Temporizador:** cada solicitud tiene 15 s desde que aparece en el teléfono. `useCountdown` recibe la hora límite de cada una, usa un solo `setInterval` para todas y lo limpia en el `return` del `useEffect` (RNF-10). Calcula lo que falta con la hora del teléfono, porque `setInterval` se atrasa con la app ocupada. Si el reloj llega a cero mientras el conductor acepta, espero el resultado: la solicitud se rechaza solo si aceptar falla.
 - **Cotización:** las rutas se piden de a una, de la más antigua a la más nueva. `routeService` deja al menos 1 s entre dos llamadas a OSRM, vengan de la cotización o de la ruta de recogida, para respetar el límite del servidor público (RNF-08). Si la ruta llega pero falla guardar la tarifa, el reintento guarda la misma ruta sin pedirla otra vez, y la tarjeta dice cuál de las dos cosas falló.
-- **Aceptar:** cuando la transacción deja el viaje en `accepted`, la app abre la pantalla del viaje. La ruta de recogida y el paso a `driver_arriving` siguen en segundo plano; si fallan, el viaje queda en `accepted` y la pantalla del viaje vuelve a pedir la ruta. Si la transacción pasa del tiempo límite, leo el viaje en el servidor antes de dar el fallo por bueno, porque pudo confirmarse después; si está en `accepted`, abro el viaje igual. Aceptar y Enviar se marcan en un `useRef` antes del primer `await`, así un doble toque no repite la acción.
+- **Aceptar:** cuando la transacción deja el viaje en `accepted`, `useActiveTrip` lo ve en su `onSnapshot` y la app abre la pantalla del viaje. Esa pantalla espera la lectura actual de la ubicación, pide la ruta de recogida y hace el paso a `driver_arriving`; si algo falla, el viaje queda en `accepted` y la pantalla ofrece Reintentar y Cancelar. Si la transacción pasa del tiempo límite, leo el viaje en el servidor antes de avisar el fallo, porque pudo confirmarse después. Como el viaje se abre desde la escucha, una transacción que se confirma más tarde también lo abre. Aceptar y Enviar se marcan en un `useRef` antes del primer `await`, así un doble toque no repite la acción.
 - **Decisión local:** las transacciones no cambian la caché de Firestore hasta que responde el servidor, así que la tarjeta se esconde apenas el conductor decide, sin esperar el `onSnapshot`. Si el rechazo falla por red, la tarjeta vuelve a la lista con el aviso y el reloj en cero, para que el conductor la rechace otra vez.
 - **Reenvío desde el simulador:** el id del viaje se genera en el teléfono antes de escribir, igual que el del conductor. Un reenvío después de un tiempo límite usa el mismo id y primero le pregunta al servidor si el viaje ya existe, para no crear dos.
 - **Variante con Postman:** Postman llama `POST /trips/simulate`, el backend crea el viaje y envía el push al `fcmToken` del conductor. Al tocar la notificación, la app abre y sigue el mismo flujo desde `onSnapshot`.
@@ -432,7 +443,7 @@ sequenceDiagram
     A->>MP: abre el checkout en el navegador
     MP->>B: GET /payments/return con payment_id
     B->>MP: GET pago por id con access_token
-    B->>FS: transacción completed a paid e increment del saldo
+    B->>FS: transacción completed a paid
     MP->>B: POST /payments/webhook
     B->>FS: misma confirmación, ya pagado, no hace nada
     FS-->>A: onSnapshot muestra Aprobado
@@ -444,25 +455,29 @@ sequenceDiagram
 2. Abre una transacción y lee el viaje.
 3. Si el viaje ya está `paid`, termina sin escribir. Esto hace la función idempotente: el retorno, el webhook y "Verificar pago" pueden llegar en cualquier orden y cualquier número de veces.
 4. Si el monto no coincide con `fare + tip`, marca `paymentStatus: 'rejected'` y registra el error en el log.
-5. Si el pago está `approved`, escribe `status: 'paid'`, `paymentStatus`, `paymentId`, `paidAt`, y suma `driverEarnings` al saldo del conductor con `increment()` dentro de la misma transacción.
+5. Si el pago está `approved`, escribe `status: 'paid'`, `paymentStatus`, `paymentId` y `paidAt` dentro de la transacción. No escribe en el conductor: Ganancias suma `driverEarnings` al saldo en cuanto el viaje queda `paid`.
 6. Si está `rejected`, escribe `paymentStatus: 'rejected'` y deja el viaje en `completed`, para poder intentar otro pago.
 
 ### 10.3 Cobro en efectivo
 
-La app hace la transacción `completed → paid` con `paymentStatus: 'cash'` y resta la comisión del saldo con `increment(-commission)` en la misma transacción (RN-08). Desde un saldo de 0, un viaje de 19.200 deja el saldo en −3.840 (HU-07).
+La app hace la transacción `completed → paid` con `paymentStatus: 'cash'` (RN-08) y no escribe en el conductor: Ganancias resta la comisión del viaje al calcular el saldo. Un conductor sin otros viajes que cobra uno de 19.200 en efectivo ve un saldo de −3.840 (HU-07).
+
+Si Mercado Pago rechazó el pago, Cobro ofrece "Cobrar en efectivo" (`canSwitchToCash`). Primero la app llama `/payments/sync`: si encuentra un pago aprobado, el viaje queda pagado con Mercado Pago, y si hay uno en proceso (`pending`, `in_process` o `authorized`), pide esperar. Solo con el pago rechazado hace la transacción `completed → paid` con `paymentMethod: 'cash'` y `paymentStatus: 'cash'` en la misma escritura, porque las reglas no dejan al cliente escribir otro `paymentStatus`. Con un pago pendiente no aparece el botón: el checkout sigue abierto y el pasajero podría pagar dos veces.
 
 ### 10.4 Registro
 
 1. Cada campo valida al perder el foco con la función de `validators.js` y muestra el error debajo (RF-02). Los errores son claves de traducción, para que cambien con el idioma.
 2. Al tocar "Enviar registro", la app sube las fotos a Cloudinary en paralelo con `Promise.allSettled`, que espera todas y dice cuál falló.
 3. Si alguna subida falla, no escribe nada en Firestore. Muestra el error en la foto que falló y conserva el formulario. Al reenviar, solo sube las fotos que fallaron o que el conductor cambió.
-4. Con todas las URL, crea el conductor con `approvalStatus: 'pending'` y `balance: 0`, guarda el `driverId` en AsyncStorage y entra al Drawer.
+4. Con todas las URL, crea el conductor con `approvalStatus: 'pending'`, guarda el `driverId` en AsyncStorage y entra al Drawer.
 
 Subo las fotos al enviar y no al elegirlas para no dejar imágenes huérfanas en Cloudinary cuando alguien abandona el registro.
 
 ### 10.5 Ubicación
 
 `useDriverLocation(isSending)` lee la posición actual al abrir Inicio, para centrar el mapa, y arranca `watchPositionAsync` de `expo-location` cuando `isSending` es `true` y el permiso está concedido. Escribe `location` en el conductor con un intervalo mínimo de 5 s y un desplazamiento mínimo de 10 m, los dos en `config/app.js`. `timeInterval` solo funciona en Android, así que el mínimo de 5 s también lo aplica el hook antes de escribir. Una posición que llega antes de tiempo no se descarta: el hook la manda al cumplirse los 5 s, para que un conductor que se detiene no quede en Firestore con la posición anterior. En la limpieza del `useEffect` llama `subscription.remove()` (RF-09).
+
+Durante el viaje, el Drawer y su pantalla Inicio no están montados. La pantalla Viaje en curso llama `useDriverLocation(true)` y envía la ubicación hasta que el viaje pasa a `completed`, sin importar el interruptor.
 
 Inicio pasa `isSending = isAvailable && useIsFocused()`. El Drawer no desmonta Inicio al cambiar de pantalla: con el conductor en Historial o en Ganancias el envío se pausa, y al volver a Inicio se retoma sin tocar el interruptor.
 
@@ -483,11 +498,11 @@ La app no tiene login (D-04), así que Firestore no puede saber quién escribe. 
 | Falsificar el retorno o el webhook | El backend consulta el pago en Mercado Pago con su llave (AD-07) |
 | Cobrar un monto alterado | El backend compara contra `fare + tip` leído de Firestore |
 | Auto-aprobarse como conductor | Las reglas prohíben al cliente cambiar `approvalStatus` |
-| Subirse el saldo desde la app | Las reglas solo dejan que el cliente baje `balance`, que es lo que hace el cobro en efectivo. Lo que lo sube lo escribe el backend |
+| Subirse el saldo desde la app | El saldo no es un campo: sale de los viajes pagados. Un viaje pagado solo acepta la calificación, así que nadie le cambia los montos ni el estado después del pago |
 | Llenar Firestore desde la API pública | `X-Simulator-Key` en `/trips/simulate` |
 | Abusar del preset de Cloudinary | Preset limitado a una carpeta y a formatos de imagen, que reduce cada foto a 1600 px. El peso máximo lo revisa la app (AD-08) |
 
-**Riesgo que acepto:** cualquiera con la configuración puede leer los conductores y viajes, y bajarle el saldo a un conductor con un viaje en efectivo falso. Para cerrarlo hace falta identidad. La evolución natural es Firebase Anonymous Authentication: sigue sin pantalla de login, pero da un `uid` por teléfono con el que las reglas pueden exigir `driverId == request.auth.uid`.
+**Riesgo que acepto:** cualquiera con la configuración puede leer los conductores y viajes, y cambiarle el saldo a un conductor con un viaje falso o editando los montos de un viaje antes de que se pague. También acepto que un checkout que quedó abierto se pague después de cobrar el viaje en efectivo: el backend ignora ese pago porque el viaje ya no está `completed`. Para cerrarlo hace falta identidad. La evolución natural es Firebase Anonymous Authentication: sigue sin pantalla de login, pero da un `uid` por teléfono con el que las reglas pueden exigir `driverId == request.auth.uid`.
 
 ### Reglas de Firestore
 
@@ -501,11 +516,8 @@ service cloud.firestore {
 
     match /drivers/{driverId} {
       allow read: if true;
-      allow create: if request.resource.data.approvalStatus == 'pending'
-                    && request.resource.data.balance == 0;
-      allow update: if !changed().hasAny(['approvalStatus', 'createdAt'])
-                    && (!changed().hasAny(['balance'])
-                        || request.resource.data.balance < resource.data.balance);
+      allow create: if request.resource.data.approvalStatus == 'pending';
+      allow update: if !changed().hasAny(['approvalStatus', 'createdAt']);
       allow delete: if false;
     }
 
@@ -518,26 +530,30 @@ service cloud.firestore {
                         || request.resource.data.paymentStatus == 'cash')
                     && (!changed().hasAny(['status'])
                         || request.resource.data.status != 'paid'
-                        || request.resource.data.paymentStatus == 'cash');
+                        || request.resource.data.paymentStatus == 'cash')
+                    && (resource.data.status != 'paid'
+                        || changed().hasOnly(['rating']));
       allow delete: if false;
     }
   }
 }
 ```
 
-`firebase-admin` no pasa por estas reglas, por eso el backend sí puede escribir la confirmación de Mercado Pago y sumarle al saldo la ganancia del viaje. La consola de Firebase tampoco pasa por ellas, y desde ahí el aprobador cambia `approvalStatus`.
+`firebase-admin` no pasa por estas reglas, por eso el backend sí puede escribir la confirmación de Mercado Pago. La consola de Firebase tampoco pasa por ellas, y desde ahí el aprobador cambia `approvalStatus`.
 
 ## 12. Manejo de fallas
 
 | Falla | Qué detecta la app | Qué ve el conductor | Recuperación |
 |---|---|---|---|
-| OSRM no responde | `fetch` con `AbortController` y 8 s de espera | "No pude calcular la ruta" en la tarjeta, con "Reintentar". No puede aceptar sin tarifa | Reintento manual; respaldo con OpenRouteService (RF-37) |
+| OSRM no responde | `fetch` con `AbortController` y 8 s de espera | "No pude calcular la ruta" en la tarjeta o en Viaje en curso, con "Reintentar". No puede aceptar sin tarifa | Reintento manual; en el viaje también puede cancelar; respaldo con OpenRouteService (RF-37) |
 | Backend dormido en Render | Llamo `/health` al abrir la app (RNF-16). En el cobro, espera de 60 s | "Conectando con el servidor de pagos…" | Reintento manual |
 | Error 4xx del backend | `apiService` lee `error.code` | El mensaje traducido de ese código | Según el código |
 | Error 5xx o red | `apiService` | "No pude completar la operación. Intenta de nuevo." | Reintento manual |
 | Firestore no confirma en 15 s | `withTimeout` en `setDoc` y en las transacciones | "Revisa la conexión" | Antes de dar el fallo por bueno, aceptar y reenviar una solicitud le preguntan al servidor si la escritura llegó |
-| Conflicto de estado del viaje | `TRIP_STATE_CONFLICT` desde la transacción | "Esta solicitud ya no está disponible" | Ninguna: el otro cambio ganó |
-| El pasajero cierra el checkout | El viaje sigue en `completed` con `paymentStatus: 'pending'` | Estado "Pendiente" y botón "Verificar pago" | `/payments/sync` |
+| Conflicto de estado del viaje | `TRIP_STATE_CONFLICT` desde la transacción | En una solicitud, "Esta solicitud ya no está disponible". En el viaje, "El viaje cambió de estado y esa acción ya no aplica", salvo que el estado ya sea el pedido: un intento anterior llegó y no aviso nada | Ninguna: el otro cambio ganó |
+| El pasajero cierra el checkout | El viaje sigue en `completed` con `paymentStatus: 'pending'` | Estado "Pendiente"; al volver a la app se verifica solo, y queda el botón "Verificar pago" | `/payments/sync`; "Pagar" también consulta los pagos antes de abrir otro checkout |
+| Pago rechazado | Mercado Pago responde `rejected` | Estado "Rechazado", la página de retorno lo dice y "Verificar pago" avisa que el último pago se rechazó | "Intentar otro pago" o "Cobrar en efectivo" |
+| No hay ninguna lectura de ubicación al aceptar | `getCurrentPositionAsync` falla y no hay última posición conocida | El error de ubicación con "Reintentar", en vez de esperar la ruta | Leer la ubicación otra vez o cancelar |
 | Subida a Cloudinary falla | Respuesta distinta de 200 | Error debajo de la foto | Reenviar; el formulario se conserva |
 | Permiso de ubicación negado | `requestForegroundPermissionsAsync` | El interruptor deshabilitado con el motivo | Abrir los ajustes del teléfono |
 | Sin conexión | Error del SDK de Firestore o de `fetch` | Estado de error de la pantalla (RNF-11) | El SDK reintenta las escrituras mientras la app siga abierta |
@@ -567,7 +583,7 @@ service cloud.firestore {
 | `@react-native-firebase/app`, `@react-native-firebase/messaging` | Push, solo en el APK |
 | Backend: `express`, `dotenv`, `firebase-admin` | Servidor, variables y acceso administrador a Firestore y FCM |
 
-El backend llama a Mercado Pago con `fetch` (Node 18 o superior) en lugar de su SDK, para que cada llamada a la pasarela quede visible en el código.
+El backend corre en Node 22, la versión mínima que pide `firebase-admin`. Llama a Mercado Pago con `fetch` en lugar de su SDK, para que cada llamada a la pasarela quede visible en el código.
 
 ## 15. Trazabilidad
 
@@ -576,9 +592,9 @@ El backend llama a Mercado Pago con `fetch` (Node 18 o superior) en lugar de su 
 | RF-01 a RF-06 | `RegistrationTabs`, `RegistrationContext`, `validators.js`, `uploadService`, `driverService` |
 | RF-07 a RF-10 | Pantalla Inicio, `useDriverLocation`, `SettingsContext`, `storageService` |
 | RF-11 a RF-16 | Cliente simulado, `useTripRequests`, `useCountdown`, `routeService`, `fare.js`, `notificationService`, `/trips/simulate` |
-| RF-17 a RF-20 | `TripStack`, `tripStateMachine.js`, `tripService.transition` |
-| RF-21 a RF-25 | Pantalla de Cobro, `apiService`, `/payments/*`, `paymentConfirmation` |
-| RF-26 a RF-32 | `useEarnings`, `useTripHistory`, `dateRanges.js`, `HistoryStack`, `EmptyState` |
+| RF-17 a RF-20 | `useActiveTrip`, `TripStack`, Viaje en curso, `useTripProgress`, `tripStateMachine.js`, `fare.js`, `tripService.transition` |
+| RF-21 a RF-25 | Pantalla de Cobro, `usePayment`, `payment.js`, `apiService`, `tripService.markCashPaid` y `rateTrip`, `/payments/*`, `paymentConfirmation` |
+| RF-26 a RF-32 | `useEarnings`, `useTripHistory`, `useTrip`, `dateRanges.js`, `earnings.js` (`summarizeEarnings`, `computeBalance`), `HistoryStack`, `EmptyState`, `firestore.indexes.json` |
 | RF-33 a RF-35 | Perfil y Configuración, `validators.js`, `storageService` |
 | RN-01 a RN-08 | `config/pricing.js`, `fare.js`, transacciones de cobro |
 | RN-09 | `tripStateMachine.js` |

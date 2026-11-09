@@ -13,7 +13,7 @@ const TAB_LABELS = {
 };
 
 // Marco de las tres pestañas: los campos con scroll y, al final, el botón
-// "Enviar registro", que está en las tres.
+// "Enviar registro", que está en las tres (RF-03).
 export default function RegistrationLayout({ children }) {
   const { t } = useSettings();
   const { isComplete, incompleteTabs, failedUploadTabs, submit, submitting, submitError } = useRegistration();

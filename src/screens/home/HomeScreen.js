@@ -3,6 +3,7 @@ import ErrorState from '../../components/ErrorState';
 import LoadingState from '../../components/LoadingState';
 import { useSession } from '../../context/SessionContext';
 import { useSettings } from '../../context/SettingsContext';
+import { approvalTextKey } from '../../domain/driverProfile';
 
 // El conductor ve si su cuenta está pendiente, aprobada o rechazada.
 // El documento llega en tiempo real desde SessionContext: si el aprobador
@@ -19,7 +20,7 @@ export default function HomeScreen() {
     <View style={styles.container}>
       <Text style={styles.name}>{driver.fullName}</Text>
       <Text style={styles.label}>{t('home.accountStatus')}</Text>
-      <Text style={styles.status}>{t(`approval.${driver.approvalStatus}`)}</Text>
+      <Text style={styles.status}>{t(`approval.${approvalTextKey(driver.approvalStatus)}`)}</Text>
     </View>
   );
 }

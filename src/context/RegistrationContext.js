@@ -63,7 +63,7 @@ export const TAB_FIELDS = {
 
 const RegistrationContext = createContext(null);
 
-// Estado del formulario de las tres pestañas. Las pestañas solo leen
+// Estado del formulario de las tres pestañas (AD-09). Las pestañas solo leen
 // y escriben aquí; validar, subir fotos y crear el conductor pasa en este archivo.
 export function RegistrationProvider({ children }) {
   const { startSession } = useSession();

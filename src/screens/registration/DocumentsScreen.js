@@ -6,7 +6,7 @@ import CheckboxField from '../../components/CheckboxField';
 import { formStyles } from '../../components/formStyles';
 import { TECH_REVIEW_FROM_YEARS } from '../../config/app';
 import { COMMISSION_RATE } from '../../config/pricing';
-import { requiresTechInspection, validateYear } from '../../domain/validators';
+import { maxSoatExpiry, requiresTechInspection, validateYear } from '../../domain/validators';
 import { useRegistration } from '../../context/RegistrationContext';
 import { useSettings } from '../../context/SettingsContext';
 import RegistrationLayout from './RegistrationLayout';
@@ -42,6 +42,7 @@ export default function DocumentsScreen() {
       <DateField
         label={t('registration.soatExpiresAt')}
         minimumDate={tomorrow}
+        maximumDate={maxSoatExpiry(today)}
         initialDate={tomorrow}
         {...field('soatExpiresAt')}
       />

@@ -42,7 +42,7 @@ export default function VehicleScreen() {
       <FormField
         label={t('registration.capacity')}
         keyboardType="number-pad"
-        maxLength={2}
+        maxLength={1}
         {...field('capacity')}
       />
       <PhotoPicker

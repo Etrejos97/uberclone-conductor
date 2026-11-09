@@ -20,24 +20,24 @@ export function newDriverId() {
   return doc(drivers).id;
 }
 
-// Crea el conductor en estado pendiente. Su id pasa a ser la sesión del
-// teléfono (D-04).
+// Crea el conductor en estado pendiente. Su id pasa a ser la sesión
+// del teléfono.
 // `profile` es el documento ya armado con lo que escribió el conductor:
 // fullName, documentNumber, phone, email, gender, birthDate, photoUrl, vehicle,
 // documents y mercadoPagoEmail (Diseño, sección 6). Las fotos van como URL de
 // Cloudinary, no como la ruta local del teléfono. Los campos del sistema los
 // pongo aquí, después del spread, para que `profile` no los pise: las reglas
-// exigen approvalStatus 'pending' y balance 0 al crear.
+// exigen approvalStatus 'pending' al crear. El saldo no se guarda: Ganancias lo
+// calcula con los viajes pagados.
 export async function createDriver(driverId, profile) {
   await withTimeout(
     setDoc(doc(drivers, driverId), {
       ...profile,
       approvalStatus: 'pending',
-      balance: 0,
       isAvailable: false,
       location: null,
       fcmToken: null,
-      commissionRateAccepted: COMMISSION_RATE,
+      commissionRateAccepted: COMMISSION_RATE, // VA-20: el porcentaje que vio al aceptar
       termsAcceptedAt: serverTimestamp(),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),

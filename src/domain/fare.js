@@ -5,7 +5,7 @@ import {
   MINIMUM_FARE,
   PER_KM,
   PER_MIN,
-} from '../config/pricing.js';
+} from '../config/pricing';
 
 // La misma función calcula la estimación y el cierre del viaje.
 // Con una entrada inválida lanza un error: una tarifa NaN guardada es peor que un error visible.

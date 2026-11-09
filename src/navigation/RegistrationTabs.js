@@ -7,14 +7,23 @@ import DocumentsScreen from '../screens/registration/DocumentsScreen';
 
 const Tab = createBottomTabNavigator();
 
-// el registro en tres pestañas. El proveedor envuelve las tres para
+// El registro en tres pestañas. El proveedor envuelve las tres para
 // que compartan el formulario y nada se pierda al cambiar de pestaña.
+// En Android la app va de borde a borde y la ventana no se achica con el
+// teclado, así que el teclado tapa la barra de pestañas. Por eso la escondo
+// mientras el teclado está abierto, y vuelve al cerrarlo.
 export default function RegistrationTabs() {
   const { t } = useSettings();
 
   return (
     <RegistrationProvider>
-      <Tab.Navigator screenOptions={{ tabBarIcon: () => null, tabBarLabelStyle: { fontSize: 13 } }}>
+      <Tab.Navigator
+        screenOptions={{
+          tabBarIcon: () => null,
+          tabBarLabelStyle: { fontSize: 13 },
+          tabBarHideOnKeyboard: true,
+        }}
+      >
         <Tab.Screen
           name="PersonalData"
           component={PersonalDataScreen}

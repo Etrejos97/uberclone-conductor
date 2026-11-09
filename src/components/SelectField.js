@@ -3,10 +3,10 @@ import { Picker } from '@react-native-picker/picker';
 import FieldError from './FieldError';
 import { colors, formStyles } from './formStyles';
 
-// Lista desplegable. `options` es [{ value, label }]; el valor vació es el
-// placeholder que pasa la pantalla ya traducido (p. ej. t('common.select')).
-// No importamos SettingsContext para que el componente sea reutilizable fuera
-// del registro y no dependa del arbol de contexto.
+// Lista desplegable. `options` es [{ value, label }]; el valor vacío es "sin elegir"
+// y su texto es el `placeholder` que la pantalla pasa ya traducido (p. ej. t('common.select')).
+// No importo SettingsContext para que el componente sirva fuera del registro y
+// no dependa del árbol de contexto.
 export default function SelectField({ label, value, options, onChange, onBlur, error, placeholder = 'Seleccionar...' }) {
   return (
     <View style={formStyles.field}>
