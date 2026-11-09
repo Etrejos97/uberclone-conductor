@@ -1,8 +1,11 @@
 // Reglas de negocio y constantes que usa toda la app.
 
-export const MIN_DRIVER_AGE = 18; // VA-05
-export const NAME_MAX_LENGTH = 50; // VA-02
-export const SHORT_TEXT_MAX_LENGTH = 30; // VA-11: marca y modelo
+export const LOCATION_INTERVAL_MS = 5000; // Cada 5 s como mínimo
+export const LOCATION_DISTANCE_M = 10; // y solo si el conductor se movió 10 m
+
+export const MIN_DRIVER_AGE = 18; // 
+export const NAME_MAX_LENGTH = 50; // 
+export const SHORT_TEXT_MAX_LENGTH = 30; // Marca y modelo
 // Capacidad permitida por categoría.
 export const CAPACITY_RANGE = {
   economy: { min: 4, max: 4 },
@@ -12,8 +15,8 @@ export const CAPACITY_RANGE = {
 // Un carro particular hace la primera revisión técnico-mecánica a partir
 // del quinto año de matriculado (Ley 769 de 2002, art. 52). Uso el año del modelo.
 export const TECH_REVIEW_FROM_YEARS = 5;
-export const MIN_VEHICLE_YEAR = 2010; // VA-12
-export const SOAT_VALIDITY_YEARS = 1; // VA-17
+export const MIN_VEHICLE_YEAR = 2010; 
+export const SOAT_VALIDITY_YEARS = 1; 
 
 // Opciones de las listas desplegables. En Firestore quedan en
 // inglés y la pantalla las traduce (RNF-14).

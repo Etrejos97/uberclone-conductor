@@ -5,6 +5,7 @@ import {
   onSnapshot,
   serverTimestamp,
   setDoc,
+  updateDoc,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { COMMISSION_RATE } from '../config/pricing';
@@ -33,11 +34,11 @@ export async function createDriver(driverId, profile) {
   await withTimeout(
     setDoc(doc(drivers, driverId), {
       ...profile,
-      approvalStatus: 'pending',
+      approvalStatus: 'pending', 
       isAvailable: false,
       location: null,
       fcmToken: null,
-      commissionRateAccepted: COMMISSION_RATE, // VA-20: el porcentaje que vio al aceptar
+      commissionRateAccepted: COMMISSION_RATE, // El porcentaje que vio al aceptar
       termsAcceptedAt: serverTimestamp(),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -53,6 +54,26 @@ export async function createDriver(driverId, profile) {
 export async function driverExists(driverId) {
   const snapshot = await withTimeout(getDocFromServer(doc(drivers, driverId)));
   return snapshot.exists();
+}
+
+// Estas dos escrituras no llevan tiempo límite: sin red, el SDK
+// las deja en cola y las manda al volver la conexión, y la pantalla ya muestra
+// el valor nuevo porque la escucha del conductor lee la caché.
+export async function setAvailability(driverId, isAvailable) {
+  await updateDoc(doc(drivers, driverId), { isAvailable, updatedAt: serverTimestamp() });
+}
+
+// Al cerrar sesión sí espero la respuesta: si la app se cierra antes de que
+// vuelva la red, la escritura en cola se pierde y el conductor queda Disponible
+// en Firestore sin nadie detrás.
+export async function setUnavailableBeforeLogout(driverId) {
+  await withTimeout(setAvailability(driverId, false));
+}
+
+export async function updateLocation(driverId, { latitude, longitude }) {
+  await updateDoc(doc(drivers, driverId), {
+    location: { latitude, longitude, updatedAt: serverTimestamp() },
+  });
 }
 
 // Escucha el documento del conductor en tiempo real. `onChange` recibe el

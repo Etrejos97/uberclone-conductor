@@ -76,7 +76,18 @@ export default {
   'menu.settings': 'Configuración',
   'menu.simulator': 'Cliente simulado',
 
-  'home.accountStatus': 'Estado de tu cuenta',
+  'home.availability': 'Disponibilidad',
+  'home.available': 'Disponible',
+  'home.unavailable': 'No disponible',
+  'home.you': 'Tú',
+  'home.reason.pending': 'Podrás ponerte disponible cuando aprueben tu cuenta.',
+  'home.reason.rejected': 'Tu cuenta fue rechazada. No puedes recibir viajes.',
+  'home.reason.unknown': 'No reconozco el estado de tu cuenta, así que no puedes ponerte disponible. Pide que lo revisen.',
+  'home.reason.denied': 'Para ponerte disponible necesito permiso de ubicación.',
+  'home.reason.servicesOff': 'Activa la ubicación del teléfono para ponerte disponible.',
+  'home.reason.error': 'No pude leer tu ubicación. Toca Reintentar para ponerte disponible.',
+  'home.allowLocation': 'Permitir ubicación',
+  'home.openSettings': 'Abrir ajustes',
 
   'trip.inProgress': 'Viaje en curso',
   'trip.goToPayment': 'Ir al cobro',
@@ -90,6 +101,8 @@ export default {
   'settings.spanish': 'Español',
   'settings.english': 'Inglés',
   'settings.logout': 'Cerrar sesión',
+  'settings.loggingOut': 'Cerrando sesión…',
+  'settings.logoutAnyway': 'Salir de todos modos',
 
   'errors.required': 'Este campo es obligatorio.',
   'errors.photoRequired': 'Agrega una foto.',
@@ -126,4 +139,8 @@ export default {
   'errors.sessionReadFailed': 'No pude leer tu sesión en este teléfono.',
   'errors.driverLoadFailed': 'No pude cargar tus datos. Revisa la conexión.',
   'errors.accountGone': 'Tu cuenta ya no existe. Regístrate de nuevo.',
+  'errors.locationFailed': 'No pude leer tu ubicación. Revisa que el GPS esté encendido.',
+  'errors.locationSaveFailed': 'No pude enviar tu ubicación. Revisa la conexión.',
+  'errors.availabilityFailed': 'No pude cambiar tu disponibilidad. Inténtalo otra vez.',
+  'errors.logoutUnavailableFailed': 'No pude pasarte a No disponible. Revisa la conexión. Si sales igual, sigues Disponible hasta que vuelva la red con la app abierta.',
 };

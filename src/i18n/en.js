@@ -76,7 +76,18 @@ export default {
   'menu.settings': 'Settings',
   'menu.simulator': 'Simulated rider',
 
-  'home.accountStatus': 'Account status',
+  'home.availability': 'Availability',
+  'home.available': 'Available',
+  'home.unavailable': 'Unavailable',
+  'home.you': 'You',
+  'home.reason.pending': 'You can go available once your account is approved.',
+  'home.reason.rejected': 'Your account was rejected. You cannot receive trips.',
+  'home.reason.unknown': "I don't recognize your account status, so you can't go available. Ask for it to be reviewed.",
+  'home.reason.denied': 'To go available I need location permission.',
+  'home.reason.servicesOff': 'Turn on your phone location to go available.',
+  'home.reason.error': "I couldn't read your location. Tap Retry to go available.",
+  'home.allowLocation': 'Allow location',
+  'home.openSettings': 'Open settings',
 
   'trip.inProgress': 'Trip in progress',
   'trip.goToPayment': 'Go to payment',
@@ -90,6 +101,8 @@ export default {
   'settings.spanish': 'Spanish',
   'settings.english': 'English',
   'settings.logout': 'Log out',
+  'settings.loggingOut': 'Logging out…',
+  'settings.logoutAnyway': 'Log out anyway',
 
   'errors.required': 'This field is required.',
   'errors.photoRequired': 'Add a photo.',
@@ -126,4 +139,8 @@ export default {
   'errors.sessionReadFailed': "I couldn't read your session on this phone.",
   'errors.driverLoadFailed': "I couldn't load your data. Check your connection.",
   'errors.accountGone': 'Your account no longer exists. Please register again.',
+  'errors.locationFailed': "I couldn't read your location. Check that GPS is on.",
+  'errors.locationSaveFailed': "I couldn't send your location. Check your connection.",
+  'errors.availabilityFailed': "I couldn't change your availability. Please try again.",
+  'errors.logoutUnavailableFailed': "I couldn't set you to Unavailable. Check your connection. If you log out anyway, you stay Available until the connection comes back with the app open.",
 };
