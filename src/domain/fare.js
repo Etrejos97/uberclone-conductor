@@ -30,3 +30,16 @@ export function calculateFare({ distanceKm, durationMin, category, tip = 0 } = {
 
   return { fare, commission, driverEarnings };
 }
+
+// Los valores finales del viaje, con la misma función de la
+// estimación y la ruta de origen a destino. Guardo el porcentaje aplicado para
+// que un cambio de comisión no altere el historial.
+export function finalCharges(trip) {
+  const charges = calculateFare({
+    distanceKm: trip.route?.distanceKm,
+    durationMin: trip.route?.durationMin,
+    category: trip.category,
+    tip: trip.tip,
+  });
+  return { ...charges, commissionRate: COMMISSION_RATE };
+}

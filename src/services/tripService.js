@@ -10,7 +10,7 @@ import {
   where,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { canTransition, TRIP_STATUS } from '../domain/tripStateMachine';
+import { canTransition, OPEN_STATUSES, TRIP_STATUS } from '../domain/tripStateMachine';
 import { withTimeout } from './withTimeout';
 
 const trips = collection(db, 'trips');
@@ -102,6 +102,28 @@ export function subscribeToRequests(driverId, onChange, onError) {
     (snapshot) => {
       const list = snapshot.docs.map(toTrip);
       list.sort((a, b) => (a.createdAt?.getTime() ?? 0) - (b.createdAt?.getTime() ?? 0));
+      onChange(list);
+    },
+    onError
+  );
+}
+
+// Viajes abiertos del conductor, del más antiguo al más nuevo: si dos quedaron
+// aceptados, atiende primero el que aceptó antes. Un viaje sale de aquí cuando
+// lo califican, y antes de pagarse `rating` siempre es null. Igualdades más `in`:
+// la consulta no necesita índice compuesto.
+export function subscribeToActiveTrips(driverId, onChange, onError) {
+  const active = query(
+    trips,
+    where('driverId', '==', driverId),
+    where('status', 'in', OPEN_STATUSES),
+    where('rating', '==', null)
+  );
+  return onSnapshot(
+    active,
+    (snapshot) => {
+      const list = snapshot.docs.map(toTrip);
+      list.sort((a, b) => (a.acceptedAt?.toMillis() ?? 0) - (b.acceptedAt?.toMillis() ?? 0));
       onChange(list);
     },
     onError
