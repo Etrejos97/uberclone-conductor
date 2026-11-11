@@ -66,6 +66,8 @@ export default function useDriverLocation(isSending) {
   }, []);
 
   useEffect(() => {
+    // Pido el permiso al montar: el estado cambia cuando el sistema responde.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     check(true);
   }, [check]);
 

@@ -5,12 +5,14 @@ export const LOCATION_DISTANCE_M = 10; // y solo si el conductor se movió 10 m
 
 export const REQUEST_TIMEOUT_S = 15; // Tiempo para aceptar una solicitud
 export const ROUTE_TIMEOUT_MS = 8000; // OSRM: después de 8 s doy la ruta por fallida
-export const OSRM_MIN_INTERVAL_MS = 1000; // El servidor público admite 1 solicitud por segundo
+export const OSRM_MIN_INTERVAL_MS = 1000; // RNF-08: el servidor público admite 1 solicitud por segundo
 
-export const MIN_DRIVER_AGE = 18; // VA-05
-export const NAME_MAX_LENGTH = 50; // VA-02
-export const SHORT_TEXT_MAX_LENGTH = 30; // VA-11: marca y modelo
-// VA-14: capacidad permitida por categoría.
+export const RATINGS = [1, 2, 3, 4, 5]; 
+
+export const MIN_DRIVER_AGE = 18; 
+export const NAME_MAX_LENGTH = 50; 
+export const SHORT_TEXT_MAX_LENGTH = 30; // Marca y modelo
+// Capacidad permitida por categoría.
 export const CAPACITY_RANGE = {
   economy: { min: 4, max: 4 },
   xl: { min: 6, max: 8 },
@@ -19,7 +21,7 @@ export const CAPACITY_RANGE = {
 // Un carro particular hace la primera revisión técnico-mecánica a partir
 // del quinto año de matriculado (Ley 769 de 2002, art. 52). Uso el año del modelo.
 export const TECH_REVIEW_FROM_YEARS = 5;
-export const MIN_VEHICLE_YEAR = 2010;
+export const MIN_VEHICLE_YEAR = 2010; 
 export const SOAT_VALIDITY_YEARS = 1; 
 
 // VA-06 y VA-13: opciones de las listas desplegables. En Firestore quedan en
@@ -36,7 +38,7 @@ export const UPLOAD_TIMEOUT_MS = 30000;
 // tiempo le digo al conductor que revise la conexión.
 export const SAVE_TIMEOUT_MS = 15000;
 
-// Cliente simulado: métodos de pago y puntos fijos de Medellin para
+// Cliente simulado: métodos de pago y puntos fijos de Medellín para
 // origen y destino. OSRM ajusta cada punto a la vía más cercana.
 export const PAYMENT_METHODS = ['mercadopago', 'cash'];
 export const SIMULATOR_PLACES = [
@@ -48,7 +50,10 @@ export const SIMULATOR_PLACES = [
   { id: 'explora', label: 'Parque Explora', latitude: 6.2707, longitude: -75.5654 },
 ];
 
+export const BACKEND_WAKE_TIMEOUT_MS = 60000; // Render tarda en despertar
+
 export const CLOUDINARY_CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME;
 export const CLOUDINARY_UPLOAD_PRESET = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
 
+export const API_URL = process.env.EXPO_PUBLIC_API_URL;
 export const OSRM_URL = process.env.EXPO_PUBLIC_OSRM_URL || 'https://router.project-osrm.org';

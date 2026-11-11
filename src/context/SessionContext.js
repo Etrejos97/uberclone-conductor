@@ -33,6 +33,8 @@ export function SessionProvider({ children }) {
   }, []);
 
   useEffect(() => {
+    // Leo la sesión guardada al abrir la app: el estado cambia cuando AsyncStorage responde.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadSession();
   }, [loadSession]);
 

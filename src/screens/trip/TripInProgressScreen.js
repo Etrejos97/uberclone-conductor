@@ -23,6 +23,10 @@ export default function TripInProgressScreen({ trip }) {
   const { route, target } = currentLeg(trip);
   const isInProgress = trip.status === S.IN_PROGRESS;
 
+  // El useMemo mantiene el mismo arreglo mientras nada cambia, y RouteMap vuelve a
+  // dibujar el mapa cada vez que `markers` es otro. El aviso del lint dice que el compilador
+  // de React no podría optimizar este componente; el proyecto no lo activa en app.config.js.
+  /* eslint-disable react-hooks/preserve-manual-memoization */
   const markers = useMemo(() => {
     const list = [{ id: 'target', ...target, color: isInProgress ? '#B00020' : '#1A73E8' }];
     if (location.position) {
@@ -30,6 +34,7 @@ export default function TripInProgressScreen({ trip }) {
     }
     return list;
   }, [target, isInProgress, location.position, t]);
+  /* eslint-enable react-hooks/preserve-manual-memoization */
 
   function confirmCancel() {
     Alert.alert(t('trip.cancelTitle'), t('trip.cancelMessage'), [

@@ -10,6 +10,7 @@ import {
   where,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { canSwitchToCash, isValidRating } from '../domain/payment';
 import { canTransition, OPEN_STATUSES, TRIP_STATUS } from '../domain/tripStateMachine';
 import { withTimeout } from './withTimeout';
 
@@ -173,6 +174,57 @@ export async function transition(tripId, from, to, changes = {}) {
       const update = { ...changes, status: to };
       if (TIMESTAMP_FIELD[to]) update[TIMESTAMP_FIELD[to]] = serverTimestamp();
       transaction.update(ref, update);
+    })
+  );
+}
+
+// El pasajero pagó en la mano. El viaje queda pagado con
+// paymentStatus 'cash', y el saldo de Ganancias resta su comisión (computeBalance).
+export function markCashPaid(tripId) {
+  return payInCash(tripId, (trip) => trip.paymentMethod === 'cash', 'Este viaje no se cobra en efectivo');
+}
+
+// Mercado Pago rechazó el pago y el pasajero paga en la mano. El viaje pasa a
+// efectivo en la misma escritura que lo deja pagado, porque las reglas solo dejan
+// escribir paymentStatus 'cash'.
+export function switchToCashPaid(tripId) {
+  return payInCash(tripId, canSwitchToCash, 'El pago con Mercado Pago no está rechazado');
+}
+
+async function payInCash(tripId, allowed, notAllowedMessage) {
+  const ref = doc(trips, tripId);
+  return withTimeout(
+    runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(ref);
+      if (!snapshot.exists()) throw conflict(`El viaje ${tripId} no existe`, null);
+      const trip = snapshot.data();
+      if (trip.status !== TRIP_STATUS.COMPLETED) {
+        throw conflict(`El viaje está en ${trip.status}, no en ${TRIP_STATUS.COMPLETED}`, trip.status);
+      }
+      if (!allowed(trip)) throw conflict(notAllowedMessage, trip.status);
+      transaction.update(ref, {
+        status: TRIP_STATUS.PAID,
+        paymentMethod: 'cash',
+        paymentStatus: 'cash',
+        [TIMESTAMP_FIELD.paid]: serverTimestamp(),
+      });
+    })
+  );
+}
+
+// El pasajero califica una sola vez, y solo después de pagar.
+export async function rateTrip(tripId, rating) {
+  if (!isValidRating(rating)) throw new Error(`Calificación no válida: ${rating}`);
+  const ref = doc(trips, tripId);
+  return withTimeout(
+    runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(ref);
+      if (!snapshot.exists()) throw conflict(`El viaje ${tripId} no existe`, null);
+      const trip = snapshot.data();
+      if (trip.status !== TRIP_STATUS.PAID) throw conflict(`El viaje está en ${trip.status}`, trip.status);
+      // Un intento anterior pasó del tiempo límite y sí llegó: no lo vuelvo a escribir.
+      if (trip.rating !== null) return;
+      transaction.update(ref, { rating });
     })
   );
 }

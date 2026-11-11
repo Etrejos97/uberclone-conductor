@@ -50,10 +50,8 @@ export default function useTripProgress(trip, position, positionReady) {
   }, [needsPickupRoute, position, positionReady, routeError, tripId, origin]);
 
   // Un guardado que pasó del tiempo límite puede llegar después: si el viaje ya salió
-  // de accepted, el aviso de la ruta ya no aplica.
-  useEffect(() => {
-    if (!needsPickupRoute) setRouteError(null);
-  }, [needsPickupRoute]);
+  // de accepted, el aviso de la ruta ya no aplica. Lo limpio al pintar y no en un efecto.
+  if (!needsPickupRoute && routeError) setRouteError(null);
 
   const retryRoute = useCallback(() => {
     setRouteError(null);
@@ -89,9 +87,11 @@ export default function useTripProgress(trip, position, positionReady) {
   );
 
   // Un aviso de la etapa anterior ya no aplica en la nueva.
-  useEffect(() => {
+  const [errorStatus, setErrorStatus] = useState(status);
+  if (errorStatus !== status) {
+    setErrorStatus(status);
     setActionError(null);
-  }, [status]);
+  }
 
   // RF-18
   const boardPassenger = useCallback(() => advance(S.IN_PROGRESS), [advance]);

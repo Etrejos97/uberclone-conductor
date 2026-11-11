@@ -17,6 +17,8 @@ export default function useCountdown(deadlines, seconds, onExpire) {
 
   useEffect(() => {
     if (!active) return undefined;
+    // `now` viene de antes de que llegara la primera solicitud: lo pongo al día ya.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setNow(Date.now());
     const timer = setInterval(() => setNow(Date.now()), 250);
     // El intervalo se apaga cuando no quedan solicitudes o al salir.
