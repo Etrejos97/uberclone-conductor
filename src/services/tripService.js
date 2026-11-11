@@ -1,14 +1,20 @@
 import {
   collection,
   doc,
+  getDoc,
   getDocFromServer,
+  getDocs,
+  limit,
   onSnapshot,
+  orderBy,
   query,
   runTransaction,
   serverTimestamp,
   setDoc,
+  startAfter,
   where,
 } from 'firebase/firestore';
+import { HISTORY_PAGE_SIZE } from '../config/app';
 import { db } from '../config/firebase';
 import { canSwitchToCash, isValidRating } from '../domain/payment';
 import { canTransition, OPEN_STATUSES, TRIP_STATUS } from '../domain/tripStateMachine';
@@ -227,4 +233,38 @@ export async function rateTrip(tripId, rating) {
       transaction.update(ref, { rating });
     })
   );
+}
+
+// Todos los viajes pagados del conductor, en tiempo real. De ellos
+// salen los resúmenes y el saldo, así que borrar o corregir un viaje en la consola
+// cambia Ganancias al instante. Solo usa igualdades: no necesita índice compuesto.
+export function subscribeToPaidTrips(driverId, onChange, onError) {
+  const paid = query(trips, where('driverId', '==', driverId), where('status', '==', TRIP_STATUS.PAID));
+  return onSnapshot(paid, (snapshot) => onChange(snapshot.docs.map(toTrip)), onError);
+}
+
+// Una página del historial, del viaje más reciente al más antiguo.
+// `range` es { start, end } con end exclusivo y `paymentMethod` 'cash' o
+// 'mercadopago'; los dos son opcionales. `after` es el último documento de la
+// página anterior. Si la página llegó llena, puede haber más.
+export async function getHistoryPage(driverId, { range = null, paymentMethod = null, after = null } = {}) {
+  const constraints = [where('driverId', '==', driverId), where('status', '==', TRIP_STATUS.PAID)];
+  if (paymentMethod) constraints.push(where('paymentMethod', '==', paymentMethod));
+  if (range) constraints.push(where('completedAt', '>=', range.start), where('completedAt', '<', range.end));
+  constraints.push(orderBy('completedAt', 'desc'));
+  if (after) constraints.push(startAfter(after));
+  constraints.push(limit(HISTORY_PAGE_SIZE));
+
+  const snapshot = await withTimeout(getDocs(query(trips, ...constraints)));
+  return {
+    trips: snapshot.docs.map(toTrip),
+    last: snapshot.docs[snapshot.docs.length - 1] ?? null,
+    hasMore: snapshot.docs.length === HISTORY_PAGE_SIZE,
+  };
+}
+
+// Un viaje del historial, o null si no existe.
+export async function getTrip(tripId) {
+  const snapshot = await withTimeout(getDoc(doc(trips, tripId)));
+  return snapshot.exists() ? toTrip(snapshot) : null;
 }

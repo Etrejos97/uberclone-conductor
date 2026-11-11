@@ -5,7 +5,9 @@ export const LOCATION_DISTANCE_M = 10; // y solo si el conductor se movió 10 m
 
 export const REQUEST_TIMEOUT_S = 15; // Tiempo para aceptar una solicitud
 export const ROUTE_TIMEOUT_MS = 8000; // OSRM: después de 8 s doy la ruta por fallida
-export const OSRM_MIN_INTERVAL_MS = 1000; // RNF-08: el servidor público admite 1 solicitud por segundo
+export const OSRM_MIN_INTERVAL_MS = 1000; // El servidor público admite 1 solicitud por segundo
+
+export const HISTORY_PAGE_SIZE = 20; 
 
 export const RATINGS = [1, 2, 3, 4, 5]; 
 
@@ -21,10 +23,10 @@ export const CAPACITY_RANGE = {
 // Un carro particular hace la primera revisión técnico-mecánica a partir
 // del quinto año de matriculado (Ley 769 de 2002, art. 52). Uso el año del modelo.
 export const TECH_REVIEW_FROM_YEARS = 5;
-export const MIN_VEHICLE_YEAR = 2010; 
-export const SOAT_VALIDITY_YEARS = 1; 
+export const MIN_VEHICLE_YEAR = 2010; // VA-12
+export const SOAT_VALIDITY_YEARS = 1; // VA-17
 
-// VA-06 y VA-13: opciones de las listas desplegables. En Firestore quedan en
+// Opciones de las listas desplegables. En Firestore quedan en
 // inglés y la pantalla las traduce.
 export const GENDERS = ['female', 'male', 'other', 'undisclosed'];
 export const VEHICLE_COLORS = ['white', 'black', 'gray', 'silver', 'red', 'blue', 'green', 'other'];
@@ -50,7 +52,7 @@ export const SIMULATOR_PLACES = [
   { id: 'explora', label: 'Parque Explora', latitude: 6.2707, longitude: -75.5654 },
 ];
 
-export const BACKEND_WAKE_TIMEOUT_MS = 60000; // Render tarda en despertar
+export const BACKEND_WAKE_TIMEOUT_MS = 60000; // R-02: Render tarda en despertar
 
 export const CLOUDINARY_CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME;
 export const CLOUDINARY_UPLOAD_PRESET = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
