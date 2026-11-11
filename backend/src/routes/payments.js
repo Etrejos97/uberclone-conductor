@@ -39,11 +39,14 @@ router.post('/preference', async (req, res) => {
   const trip = snapshot.data();
   assertPayable(trip, amount);
 
-  // Con un cobro pendiente, el pasajero pudo haber pagado sin que el backend se
-  // enterara: el retorno y el webhook no llegan a mi PC. Antes de abrir otro
-  // checkout pregunto a Mercado Pago, para no cobrarle dos veces el mismo viaje.
-  if (trip.paymentStatus === 'pending' && (await paymentConfirmation.syncTrip(tripId)) === 'approved') {
-    throw new ApiError(409, 'TRIP_ALREADY_PAID', 'Este viaje ya está pagado.');
+  // Con un cobro ya intentado, el pasajero pudo haber pagado sin que el backend
+  // se enterara: el retorno y el webhook no llegan a mi PC, y un checkout
+  // rechazado sigue abierto para otro intento. Antes de abrir otro checkout
+  // pregunto a Mercado Pago, para no cobrarle dos veces el mismo viaje.
+  if (trip.paymentStatus) {
+    const found = await paymentConfirmation.inspectTrip(tripId);
+    if (found.paymentStatus === 'approved') throw new ApiError(409, 'TRIP_ALREADY_PAID', 'Este viaje ya está pagado.');
+    if (found.inProgress) throw new ApiError(409, 'PAYMENT_IN_PROCESS', 'Hay un pago en proceso para este viaje.');
   }
 
   const { preferenceId, checkoutUrl } = await mercadoPago.createPreference(tripId, amount);

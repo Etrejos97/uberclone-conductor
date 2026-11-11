@@ -54,6 +54,10 @@ function preferenceBody(tripId, amount, baseUrl) {
   return {
     items: [{ id: tripId, title: 'Viaje UberClone', quantity: 1, currency_id: 'COP', unit_price: amount }],
     external_reference: tripId,
+    // Solo aprobado o rechazado, sin pagos que queden pendientes por días
+    // (efectivo en un punto de pago o una revisión manual): el viaje no queda
+    // esperando un pago que tal vez nunca llegue.
+    binary_mode: true,
     ...publicUrls(baseUrl),
   };
 }
