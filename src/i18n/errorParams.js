@@ -4,6 +4,7 @@ import {
   MIN_DRIVER_AGE,
   MIN_VEHICLE_YEAR,
   NAME_MAX_LENGTH,
+  RENEWAL_WINDOW_DAYS,
   SHORT_TEXT_MAX_LENGTH,
 } from '../config/app';
 
@@ -19,4 +20,5 @@ export const ERROR_PARAMS = {
   xlMax: CAPACITY_RANGE.xl.max,
   premiumMax: CAPACITY_RANGE.premium.max,
   maxPhotoMb: MAX_PHOTO_MB,
+  renewalDays: RENEWAL_WINDOW_DAYS,
 };

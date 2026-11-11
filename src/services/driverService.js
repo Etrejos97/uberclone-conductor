@@ -22,7 +22,7 @@ export function newDriverId() {
 }
 
 // Crea el conductor en estado pendiente. Su id pasa a ser la sesión
-// del teléfono.
+// del teléfono (D-04).
 // `profile` es el documento ya armado con lo que escribió el conductor:
 // fullName, documentNumber, phone, email, gender, birthDate, photoUrl, vehicle,
 // documents y mercadoPagoEmail (Diseño, sección 6). Las fotos van como URL de
@@ -34,13 +34,36 @@ export async function createDriver(driverId, profile) {
   await withTimeout(
     setDoc(doc(drivers, driverId), {
       ...profile,
-      approvalStatus: 'pending', 
+      approvalStatus: 'pending',
       isAvailable: false,
       location: null,
       fcmToken: null,
       commissionRateAccepted: COMMISSION_RATE, // El porcentaje que vio al aceptar
       termsAcceptedAt: serverTimestamp(),
       createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
+  );
+}
+
+// Editar contacto. `changes` son solo los campos de toContactUpdate:
+// las reglas de Firestore no dejan que un conductor aprobado cambie otros sin
+// volver a revisión. Repetirlo escribe lo mismo, así que después de un tiempo
+// límite el conductor puede volver a guardar sin riesgo.
+export async function updateDriverProfile(driverId, changes) {
+  await withTimeout(updateDoc(doc(drivers, driverId), { ...changes, updatedAt: serverTimestamp() }));
+}
+
+// Renovar documentos, o corregir un registro sin aprobar, devuelve la cuenta a
+// revisión: queda pendiente y No disponible hasta que el aprobador la revise.
+// Es la única escritura de la app que toca approvalStatus, y las reglas solo la
+// dejan pasar a 'pending'.
+export async function submitForReview(driverId, changes) {
+  await withTimeout(
+    updateDoc(doc(drivers, driverId), {
+      ...changes,
+      approvalStatus: 'pending',
+      isAvailable: false,
       updatedAt: serverTimestamp(),
     })
   );

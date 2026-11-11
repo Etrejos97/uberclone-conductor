@@ -22,16 +22,24 @@ function twoDigits(value) {
   return String(value).padStart(2, '0');
 }
 
-// Fecha y hora del viaje en la hora del teléfono. En español día/mes y
-// reloj de 24 horas (05/11/2026 15:04); en inglés mes/día y AM/PM (11/05/2026 3:04 PM).
-export function formatDateTime(date, language) {
+// Una fecha sin hora: día/mes/año en español (05/11/2026) y mes/día/año en
+// inglés (11/05/2026).
+export function formatDate(date, language) {
   const day = twoDigits(date.getDate());
   const month = twoDigits(date.getMonth() + 1);
+  return language === 'es'
+    ? `${day}/${month}/${date.getFullYear()}`
+    : `${month}/${day}/${date.getFullYear()}`;
+}
+
+// Fecha y hora del viaje en la hora del teléfono. En español reloj de
+// 24 horas (05/11/2026 15:04); en inglés AM/PM (11/05/2026 3:04 PM).
+export function formatDateTime(date, language) {
   const minutes = twoDigits(date.getMinutes());
   if (language === 'es') {
-    return `${day}/${month}/${date.getFullYear()} ${twoDigits(date.getHours())}:${minutes}`;
+    return `${formatDate(date, language)} ${twoDigits(date.getHours())}:${minutes}`;
   }
   const hours = date.getHours() % 12 || 12;
   const suffix = date.getHours() < 12 ? 'AM' : 'PM';
-  return `${month}/${day}/${date.getFullYear()} ${hours}:${minutes} ${suffix}`;
+  return `${formatDate(date, language)} ${hours}:${minutes} ${suffix}`;
 }

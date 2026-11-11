@@ -7,12 +7,12 @@ export const REQUEST_TIMEOUT_S = 15; // Tiempo para aceptar una solicitud
 export const ROUTE_TIMEOUT_MS = 8000; // OSRM: después de 8 s doy la ruta por fallida
 export const OSRM_MIN_INTERVAL_MS = 1000; // El servidor público admite 1 solicitud por segundo
 
-export const HISTORY_PAGE_SIZE = 20; 
+export const HISTORY_PAGE_SIZE = 20;
 
-export const RATINGS = [1, 2, 3, 4, 5]; 
+export const RATINGS = [1, 2, 3, 4, 5];
 
 export const MIN_DRIVER_AGE = 18; 
-export const NAME_MAX_LENGTH = 50; 
+export const NAME_MAX_LENGTH = 50;
 export const SHORT_TEXT_MAX_LENGTH = 30; // Marca y modelo
 // Capacidad permitida por categoría.
 export const CAPACITY_RANGE = {
@@ -23,10 +23,13 @@ export const CAPACITY_RANGE = {
 // Un carro particular hace la primera revisión técnico-mecánica a partir
 // del quinto año de matriculado (Ley 769 de 2002, art. 52). Uso el año del modelo.
 export const TECH_REVIEW_FROM_YEARS = 5;
-export const MIN_VEHICLE_YEAR = 2010; // VA-12
-export const SOAT_VALIDITY_YEARS = 1; // VA-17
+export const MIN_VEHICLE_YEAR = 2010;
+export const SOAT_VALIDITY_YEARS = 1;
+// Perfil deja renovar un documento cuando ya venció o le faltan menos de estos
+// días para vencer. Antes, la renovación está cerrada.
+export const RENEWAL_WINDOW_DAYS = 7;
 
-// Opciones de las listas desplegables. En Firestore quedan en
+// VA-06 y VA-13: opciones de las listas desplegables. En Firestore quedan en
 // inglés y la pantalla las traduce.
 export const GENDERS = ['female', 'male', 'other', 'undisclosed'];
 export const VEHICLE_COLORS = ['white', 'black', 'gray', 'silver', 'red', 'blue', 'green', 'other'];
@@ -40,7 +43,7 @@ export const UPLOAD_TIMEOUT_MS = 30000;
 // tiempo le digo al conductor que revise la conexión.
 export const SAVE_TIMEOUT_MS = 15000;
 
-// Cliente simulado: métodos de pago y puntos fijos de Medellín para
+// Cliente: métodos de pago y puntos fijos de Medellín para
 // origen y destino. OSRM ajusta cada punto a la vía más cercana.
 export const PAYMENT_METHODS = ['mercadopago', 'cash'];
 export const SIMULATOR_PLACES = [

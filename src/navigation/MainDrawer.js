@@ -3,7 +3,7 @@ import { useSettings } from '../context/SettingsContext';
 import HomeScreen from '../screens/home/HomeScreen';
 import HistoryStack from './HistoryStack';
 import EarningsScreen from '../screens/earnings/EarningsScreen';
-import ProfileScreen from '../screens/profile/ProfileScreen';
+import ProfileStack from './ProfileStack';
 import SettingsScreen from '../screens/settings/SettingsScreen';
 import SimulatorScreen from '../screens/simulator/SimulatorScreen';
 
@@ -25,7 +25,11 @@ export default function MainDrawer() {
         component={EarningsScreen}
         options={{ title: t('menu.earnings') }}
       />
-      <Drawer.Screen name="Profile" component={ProfileScreen} options={{ title: t('menu.profile') }} />
+      <Drawer.Screen
+        name="Profile"
+        component={ProfileStack}
+        options={{ title: t('menu.profile'), headerShown: false }}
+      />
       <Drawer.Screen
         name="Settings"
         component={SettingsScreen}

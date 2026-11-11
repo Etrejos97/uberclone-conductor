@@ -11,7 +11,8 @@ import useDriverLocation from '../../hooks/useDriverLocation';
 import useTripRequests from '../../hooks/useTripRequests';
 import useCountdown from '../../hooks/useCountdown';
 import { REQUEST_TIMEOUT_S } from '../../config/app';
-import { approvalTextKey } from '../../domain/driverProfile';
+import { approvalTextKey, toFormValues } from '../../domain/driverProfile';
+import { expiredDocuments } from '../../domain/validators';
 import { setAvailability } from '../../services/driverService';
 import { useSession } from '../../context/SessionContext';
 import { useSettings } from '../../context/SettingsContext';
@@ -19,13 +20,13 @@ import { useSettings } from '../../context/SettingsContext';
 const NO_ROUTE = [];
 
 // Inicio: el mapa con la ubicación actual, el interruptor Disponible / No
-// disponible y la solicitud que esté llegando. El valor del interruptor es el `isAvailable` del conductor en Firestore.
-export default function HomeScreen() {
+// disponible (RF-05, RF-07 a RF-10) y la solicitud que esté llegando. El valor del interruptor es el `isAvailable` del conductor en Firestore.
+export default function HomeScreen({ navigation }) {
   const { t, lastAvailability, setLastAvailability } = useSettings();
   const { driverId, driver, driverError, retryDriver } = useSession();
   const isFocused = useIsFocused();
   const isAvailable = driver?.isAvailable === true;
-  // El menú lateral no desmonta Inicio, así que pauso el envío mientras
+  // RF-09: el menú lateral no desmonta Inicio, así que pauso el envío mientras
   // el conductor está en otra pantalla y lo retomo al volver.
   const location = useDriverLocation(isAvailable && isFocused);
   // Las solicitudes también se escuchan solo con Inicio a la vista: al volver,
@@ -42,7 +43,12 @@ export default function HomeScreen() {
 
   const hasDriver = driver !== null;
   const isApproved = driver?.approvalStatus === 'approved';
-  const canBeAvailable = isApproved && location.status === 'ready';
+  // Un documento vencido también cierra la disponibilidad, hasta que el
+  // conductor lo renueve en Perfil y el aprobador vuelva a aprobar la cuenta.
+  // Lo calculo en cada render, sin useMemo: un vencimiento que llega con la app
+  // abierta se nota al volver a Inicio, que se vuelve a pintar al enfocarse.
+  const expired = driver ? expiredDocuments(toFormValues(driver)) : [];
+  const canBeAvailable = isApproved && expired.length === 0 && location.status === 'ready';
 
   const changeAvailability = useCallback(
     async (value) => {
@@ -115,6 +121,20 @@ export default function HomeScreen() {
         </View>
         {/* Con la cuenta sin aprobar el interruptor no cambia y digo por qué. */}
         {!isApproved ? <Text style={formStyles.hint}>{t(`home.reason.${approvalTextKey(driver.approvalStatus)}`)}</Text> : null}
+        {isApproved && expired.length > 0 ? (
+          <>
+            <Text style={formStyles.hint}>
+              {t('home.reason.expired', { documents: expired.map((name) => t(`document.${name}`)).join(', ') })}
+            </Text>
+            {/* initial: false deja el Perfil debajo, así la flecha de volver lleva ahí. */}
+            <Button
+              title={t('profile.renew')}
+              onPress={() =>
+                navigation.navigate('Profile', { screen: 'ProfileEdit', params: { mode: 'renewal' }, initial: false })
+              }
+            />
+          </>
+        ) : null}
         {locationBlocked ? (
           <>
             <Text style={formStyles.hint}>{t(`home.reason.${location.status}`)}</Text>

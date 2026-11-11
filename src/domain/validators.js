@@ -7,6 +7,7 @@ import {
   MIN_VEHICLE_YEAR,
   NAME_MAX_LENGTH,
   PAYMENT_METHODS,
+  RENEWAL_WINDOW_DAYS,
   SHORT_TEXT_MAX_LENGTH,
   SIMULATOR_PLACES,
   SOAT_VALIDITY_YEARS,
@@ -32,6 +33,12 @@ function dayOnly(date) {
 
 function isValidDate(value) {
   return value instanceof Date && !Number.isNaN(value.getTime());
+}
+
+// Devuelve solo los campos con error, así `Object.keys(errors).length === 0`
+// significa que el formulario está listo.
+function withoutNulls(errors) {
+  return Object.fromEntries(Object.entries(errors).filter(([, error]) => error !== null));
 }
 
 // y las fotos de documentos: basta con que haya una imagen elegida.
@@ -155,17 +162,72 @@ export function requiresTechInspection(values, today = new Date()) {
   return validateYear(values.year, today) === null && needsTechnicalReview(values.year, today);
 }
 
-// Valida el formulario completo de las tres pestañas. Devuelve solo los
-// campos con error, así `Object.keys(errors).length === 0` significa que está listo.
-export function validateRegistration(values, today = new Date()) {
+// Los documentos que vencen. La revisión técnico-mecánica entra cuando el
+// vehículo ya la necesita (VA-18), aunque no se haya cargado al registrarse.
+export function expiringDocuments(values, today = new Date()) {
+  return requiresTechInspection(values, today) ? ['license', 'soat', 'techInspection'] : ['license', 'soat'];
+}
+
+// Un documento sin fecha cuenta como vencido: es la revisión técnico-mecánica
+// que el vehículo empezó a necesitar después del registro.
+function isExpired(expiryDate, today) {
+  return validateExpiryDate(expiryDate, today) !== null;
+}
+
+// Vencido, o con menos de RENEWAL_WINDOW_DAYS días por delante.
+function isDueForRenewal(expiryDate, today) {
+  if (!isValidDate(expiryDate)) return true;
+  const limit = new Date(today.getFullYear(), today.getMonth(), today.getDate() + RENEWAL_WINDOW_DAYS);
+  return dayOnly(expiryDate) < limit;
+}
+
+// Los documentos que el conductor puede renovar hoy en Perfil.
+export function documentsDueForRenewal(values, today = new Date()) {
+  return expiringDocuments(values, today).filter((name) => isDueForRenewal(values[`${name}ExpiresAt`], today));
+}
+
+// Con uno de estos vencido, el conductor no puede ponerse disponible.
+export function expiredDocuments(values, today = new Date()) {
+  return expiringDocuments(values, today).filter((name) => isExpired(values[`${name}ExpiresAt`], today));
+}
+
+// Renovar: la foto y el vencimiento de cada documento de `documents`, con las
+// reglas del registro. Una fecha que vuelve a caer en la ventana de renovación
+// no es la de un documento nuevo.
+export function validateRenewal(values, documents, today = new Date()) {
+  const errors = {};
+  documents.forEach((name) => {
+    const expiry = values[`${name}ExpiresAt`];
+    const dateError = name === 'soat' ? validateSoatExpiry(expiry, today) : validateExpiryDate(expiry, today);
+    errors[`${name}Photo`] = validatePhotoFile(values[`${name}Photo`]);
+    errors[`${name}ExpiresAt`] = dateError ?? (isDueForRenewal(expiry, today) ? 'errors.renewalStillDue' : null);
+  });
+  return withoutNulls(errors);
+}
+
+// El contacto, lo único que un conductor aprobado
+// cambia sin volver a revisión.
+function contactChecks(values) {
+  return {
+    phone: validatePhone(values.phone),
+    gender: validateOption(values.gender, GENDERS),
+    email: validateEmail(values.email),
+    mercadoPagoEmail: validateEmail(values.mercadoPagoEmail),
+  };
+}
+
+export function validateContact(values) {
+  return withoutNulls(contactChecks(values));
+}
+
+// Los datos del conductor, con las mismas reglas del registro.
+export function validateProfile(values, today = new Date()) {
   const errors = {
     profilePhoto: validatePhotoFile(values.profilePhoto),
     fullName: validateFullName(values.fullName),
     documentNumber: validateIdNumber(values.documentNumber),
-    phone: validatePhone(values.phone),
     birthDate: validateBirthDate(values.birthDate, today),
-    gender: validateOption(values.gender, GENDERS),
-    email: validateEmail(values.email),
+    ...contactChecks(values),
 
     category: validateCategory(values.category),
     plate: validatePlate(values.plate),
@@ -176,14 +238,12 @@ export function validateRegistration(values, today = new Date()) {
     capacity: validateCapacity(values.capacity, values.category),
     vehiclePhoto: validatePhotoFile(values.vehiclePhoto),
 
-    // En Colombia el número de la licencia es el de la cédula del conductor.
+    // VA-16: en Colombia el número de la licencia es el de la cédula del conductor.
     licenseNumber: validateIdNumber(values.licenseNumber),
     licensePhoto: validatePhotoFile(values.licensePhoto),
     licenseExpiresAt: validateExpiryDate(values.licenseExpiresAt, today),
     soatPhoto: validatePhotoFile(values.soatPhoto),
     soatExpiresAt: validateSoatExpiry(values.soatExpiresAt, today),
-    mercadoPagoEmail: validateEmail(values.mercadoPagoEmail),
-    termsAccepted: validateTerms(values.termsAccepted),
   };
 
   if (requiresTechInspection(values, today)) {
@@ -191,7 +251,15 @@ export function validateRegistration(values, today = new Date()) {
     errors.techInspectionExpiresAt = validateExpiryDate(values.techInspectionExpiresAt, today);
   }
 
-  return Object.fromEntries(Object.entries(errors).filter(([, error]) => error !== null));
+  return withoutNulls(errors);
+}
+
+// El registro de las tres pestañas es el perfil más la aceptación de
+// los términos (VA-20), que solo se pide al registrarse.
+export function validateRegistration(values, today = new Date()) {
+  const errors = validateProfile(values, today);
+  const terms = validateTerms(values.termsAccepted);
+  return terms ? { ...errors, termsAccepted: terms } : errors;
 }
 
 // Cliente simulado. La propina es opcional: vacía cuenta como 0, y si la
