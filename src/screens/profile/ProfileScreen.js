@@ -1,17 +1,19 @@
-import { Button, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import AppButton from '../../components/AppButton';
 import ErrorState from '../../components/ErrorState';
 import InfoRow from '../../components/InfoRow';
 import LoadingState from '../../components/LoadingState';
-import StatusBadge from '../../components/StatusBadge';
-import { colors, formStyles } from '../../components/formStyles';
+import StatusBadge, { APPROVAL_TONES } from '../../components/StatusBadge';
+import { formStyles } from '../../components/formStyles';
 import { RENEWAL_WINDOW_DAYS } from '../../config/app';
 import { approvalTextKey, editsWholeProfile, toFormValues } from '../../domain/driverProfile';
 import { documentsDueForRenewal, expiredDocuments, requiresTechInspection } from '../../domain/validators';
 import { formatDate } from '../../i18n/format';
 import { useSession } from '../../context/SessionContext';
 import { useSettings } from '../../context/SettingsContext';
-
-const APPROVAL_TONES = { approved: 'success', pending: 'warning', rejected: 'danger', unknown: 'neutral' };
+import { card, colors, fonts, radius } from '../../theme';
 
 // Los datos del conductor como están en Firestore. Lee el documento en
 // tiempo real de SessionContext, así que al guardar una edición, o si el
@@ -19,6 +21,7 @@ const APPROVAL_TONES = { approved: 'success', pending: 'warning', rejected: 'dan
 export default function ProfileScreen({ navigation }) {
   const { t, language } = useSettings();
   const { driver, driverError, retryDriver } = useSession();
+  const insets = useSafeAreaInsets();
 
   if (driverError) return <ErrorState message={t(driverError)} onRetry={retryDriver} />;
   if (!driver) return <LoadingState message={t('common.loading')} />;
@@ -31,19 +34,18 @@ export default function ProfileScreen({ navigation }) {
   const expired = expiredDocuments(values);
   const edit = (mode) => navigation.navigate('ProfileEdit', { mode });
 
-  // El vencimiento de un documento y, si toca renovarlo, por qué.
+  // El vencimiento de un documento y, si toca renovarlo, por qué: en rojo si
+  // venció y en ámbar si vence pronto.
   const expiry = (name) => {
     const date = values[`${name}ExpiresAt`];
-    // Sin fecha, "Falta" ya lo dice todo: no le agrego "Vencido".
-    if (!date) return t('profile.missing');
-    const text = formatDate(date, language);
-    if (expired.includes(name)) return `${text} · ${t('profile.expired')}`;
-    if (due.includes(name)) return `${text} · ${t('profile.dueSoon')}`;
-    return text;
+    const text = date ? formatDate(date, language) : t('profile.missing');
+    if (expired.includes(name)) return { value: `${text} · ${t('profile.expired')}`, valueColor: colors.danger };
+    if (due.includes(name)) return { value: `${text} · ${t('profile.dueSoon')}`, valueColor: colors.warning };
+    return { value: text };
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.content}>
+    <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}>
       <View style={styles.header}>
         {driver.photoUrl ? (
           <Image
@@ -51,27 +53,33 @@ export default function ProfileScreen({ navigation }) {
             style={styles.avatar}
             accessibilityLabel={t('registration.profilePhoto')}
           />
-        ) : null}
-        <Text style={styles.name}>{driver.fullName}</Text>
+        ) : (
+          <View style={[styles.avatar, styles.avatarEmpty]}>
+            <Ionicons name="person" size={44} color={colors.faint} />
+          </View>
+        )}
+        <Text style={styles.name} accessibilityRole="header">
+          {driver.fullName}
+        </Text>
         <StatusBadge label={t(`approval.${approval}`)} tone={APPROVAL_TONES[approval]} />
       </View>
 
       {editsWholeProfile(driver.approvalStatus) ? (
         <View style={styles.actions}>
-          <Button title={t('profile.edit')} onPress={() => edit('full')} color={colors.primary} />
-          <Text style={formStyles.hint}>{t('profile.reviewHint')}</Text>
+          <AppButton title={t('profile.edit')} onPress={() => edit('full')} />
+          <Text style={[formStyles.hint, styles.center]}>{t('profile.reviewHint')}</Text>
         </View>
       ) : (
         <View style={styles.actions}>
-          <Button title={t('profile.editContact')} onPress={() => edit('contact')} color={colors.primary} />
+          <AppButton title={t('profile.editContact')} onPress={() => edit('contact')} />
           {/* La renovación se abre solo con un documento vencido o a menos de RENEWAL_WINDOW_DAYS días de vencer. */}
-          <Button
+          <AppButton
             title={t('profile.renew')}
             onPress={() => edit('renewal')}
             disabled={due.length === 0}
-            color={colors.primary}
+            variant="secondary"
           />
-          <Text style={formStyles.hint}>
+          <Text style={[formStyles.hint, styles.center]}>
             {due.length === 0 ? t('profile.renewClosed', { days: RENEWAL_WINDOW_DAYS }) : t('profile.renewOpen')}
           </Text>
         </View>
@@ -107,12 +115,13 @@ export default function ProfileScreen({ navigation }) {
 
       <Section title={t('registration.documents')}>
         <InfoRow label={t('registration.licenseNumber')} value={values.licenseNumber} />
-        <InfoRow label={t('registration.licenseExpiresAt')} value={expiry('license')} />
-        <InfoRow label={t('registration.soatExpiresAt')} value={expiry('soat')} />
-        <InfoRow
-          label={t('registration.techInspectionExpiresAt')}
-          value={requiresTechInspection(values) ? expiry('techInspection') : t('profile.notRequired')}
-        />
+        <InfoRow label={t('registration.licenseExpiresAt')} {...expiry('license')} />
+        <InfoRow label={t('registration.soatExpiresAt')} {...expiry('soat')} />
+        {requiresTechInspection(values) ? (
+          <InfoRow label={t('registration.techInspectionExpiresAt')} {...expiry('techInspection')} />
+        ) : (
+          <InfoRow label={t('registration.techInspectionExpiresAt')} value={t('profile.notRequired')} />
+        )}
         <InfoRow label={t('registration.mercadoPagoEmail')} value={driver.mercadoPagoEmail} />
       </Section>
     </ScrollView>
@@ -122,19 +131,32 @@ export default function ProfileScreen({ navigation }) {
 function Section({ title, children }) {
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
+      <Text style={styles.sectionTitle} accessibilityRole="header">
+        {title}
+      </Text>
       {children}
     </View>
   );
 }
 
+const AVATAR_SIZE = 104;
+
 const styles = StyleSheet.create({
-  content: { padding: 20, gap: 20, paddingBottom: 40 },
+  content: { padding: 20, gap: 18 },
   header: { alignItems: 'center', gap: 10 },
-  avatar: { width: 112, height: 112, borderRadius: 56, backgroundColor: '#F2F2F2' },
-  name: { fontSize: 20, fontWeight: '700', color: colors.text, textAlign: 'center' },
+  avatar: {
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: AVATAR_SIZE / 2,
+    borderWidth: 3,
+    borderColor: colors.primary,
+    backgroundColor: colors.surface,
+  },
+  avatarEmpty: { borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  name: { fontSize: 22, fontFamily: fonts.bold, color: colors.text, textAlign: 'center' },
   actions: { gap: 10 },
-  section: { gap: 10, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 16 },
-  sectionTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
-  vehiclePhoto: { width: '100%', height: 160, borderRadius: 8, backgroundColor: '#F2F2F2' },
+  center: { textAlign: 'center' },
+  section: { ...card, gap: 10, padding: 16 },
+  sectionTitle: { fontSize: 16, fontFamily: fonts.bold, color: colors.text },
+  vehiclePhoto: { width: '100%', aspectRatio: 4 / 3, borderRadius: radius.input, backgroundColor: colors.surfaceRaised },
 });

@@ -7,15 +7,15 @@ import InfoRow from '../../components/InfoRow';
 import LoadingState from '../../components/LoadingState';
 import RouteMap from '../../components/RouteMap';
 import StatusBadge from '../../components/StatusBadge';
-import { colors } from '../../components/formStyles';
 import { useSettings } from '../../context/SettingsContext';
 import useTrip from '../../hooks/useTrip';
 import { METHOD_TONE } from './HistoryListScreen';
 import { formatDateTime, formatKm, formatMoney } from '../../i18n/format';
+import { card, colors, fonts, radius } from '../../theme';
 
 const NO_ROUTE = [];
 
-// Detalle de un viaje del historial (RF-31): la ruta guardada de origen a destino
+// Detalle de un viaje del historial: la ruta guardada de origen a destino
 // y los valores con que se cerró. La duración y la distancia son las de esa ruta,
 // las mismas con que se calculó la tarifa.
 export default function HistoryDetailScreen({ route }) {
@@ -23,11 +23,12 @@ export default function HistoryDetailScreen({ route }) {
   const insets = useSafeAreaInsets();
   const { trip, loading, error, retry } = useTrip(route.params?.tripId);
 
+  // La recogida con el centro oscuro y el destino en verde, como en la solicitud.
   const markers = useMemo(() => {
     if (!trip) return [];
     return [
-      { id: 'origin', ...trip.origin, color: '#1A73E8' },
-      { id: 'destination', ...trip.destination, color: '#B00020' },
+      { id: 'origin', ...trip.origin, color: colors.background },
+      { id: 'destination', ...trip.destination, color: colors.primary, borderColor: colors.primary },
     ];
   }, [trip]);
 
@@ -45,7 +46,7 @@ export default function HistoryDetailScreen({ route }) {
       </View>
 
       <View style={styles.header}>
-        <Text style={styles.places}>
+        <Text style={styles.places} accessibilityRole="header">
           {trip.origin?.label} → {trip.destination?.label}
         </Text>
         <StatusBadge label={t(`history.method.${trip.paymentMethod}`)} tone={METHOD_TONE[trip.paymentMethod]} />
@@ -75,8 +76,8 @@ export default function HistoryDetailScreen({ route }) {
 
 const styles = StyleSheet.create({
   content: { padding: 16, gap: 16 },
-  map: { height: 240, borderRadius: 8, overflow: 'hidden' },
-  header: { gap: 8, alignItems: 'flex-start' },
-  places: { fontSize: 17, fontWeight: '600', color: colors.text },
-  card: { gap: 8, borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 16 },
+  map: { height: 220, borderRadius: radius.card, overflow: 'hidden', borderWidth: 1, borderColor: colors.border },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  places: { flex: 1, fontSize: 17, fontFamily: fonts.bold, color: colors.text },
+  card: { ...card, gap: 10, padding: 16 },
 });

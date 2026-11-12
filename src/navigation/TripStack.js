@@ -1,6 +1,7 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useSettings } from '../context/SettingsContext';
 import { TRIP_STATUS } from '../domain/tripStateMachine';
+import { headerTitle } from '../theme';
 import TripInProgressScreen from '../screens/trip/TripInProgressScreen';
 import PaymentScreen from '../screens/payment/PaymentScreen';
 
@@ -13,7 +14,7 @@ export default function TripStack({ trip }) {
   const { t } = useSettings();
 
   return (
-    <Stack.Navigator>
+    <Stack.Navigator screenOptions={{ headerTitleStyle: headerTitle }}>
       {trip.status === TRIP_STATUS.COMPLETED || trip.status === TRIP_STATUS.PAID ? (
         <Stack.Screen name="Payment" options={{ title: t('payment.title') }}>
           {() => <PaymentScreen key={trip.id} trip={trip} />}

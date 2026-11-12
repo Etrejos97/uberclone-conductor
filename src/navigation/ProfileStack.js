@@ -1,6 +1,7 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { DrawerToggleButton } from '@react-navigation/drawer';
+import MenuButton from '../components/MenuButton';
 import { useSettings } from '../context/SettingsContext';
+import { headerTitle } from '../theme';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 import ProfileEditScreen, { EDIT_TITLES } from '../screens/profile/ProfileEditScreen';
 
@@ -13,11 +14,11 @@ export default function ProfileStack() {
   const { t } = useSettings();
 
   return (
-    <Stack.Navigator>
+    <Stack.Navigator screenOptions={{ headerTitleStyle: headerTitle }}>
       <Stack.Screen
         name="ProfileView"
         component={ProfileScreen}
-        options={{ title: t('menu.profile'), headerLeft: () => <DrawerToggleButton /> }}
+        options={{ title: t('menu.profile'), headerLeft: ({ tintColor }) => <MenuButton tintColor={tintColor} /> }}
       />
       <Stack.Screen
         name="ProfileEdit"

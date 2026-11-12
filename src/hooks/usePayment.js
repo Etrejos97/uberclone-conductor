@@ -8,7 +8,9 @@ import { isTripConflict, markCashPaid, rateTrip, switchToCashPaid } from '../ser
 
 const cashErrorKey = (reason) => (isTripConflict(reason) ? 'errors.tripChanged' : 'errors.tripActionFailed');
 
-// Un intento anterior pasó del tiempo límite y sí llegó: ya está hecho.
+// Si el viaje ya está pagado, un intento anterior pasó del tiempo límite y sí
+// llegó, o Mercado Pago aprobó la tarjeta primero. En los dos casos no hay nada
+// que escribir; el aviso de la tarjeta lo decide usePayment con el viaje.
 async function payOnce(write, tripId) {
   try {
     await write(tripId);
@@ -31,6 +33,9 @@ export default function usePayment(trip) {
   const acting = useRef(false);
   // Se abrió el checkout desde aquí y falta verificar al volver a la app.
   const awaitingReturn = useRef(false);
+  // El conductor confirmó que recibió el efectivo. Si después el viaje aparece
+  // pagado con tarjeta, el efectivo no quedó registrado y tiene que devolverlo.
+  const [cashConfirmed, setCashConfirmed] = useState(false);
 
   const tripId = trip.id;
   const amount = amountToCharge(trip);
@@ -64,7 +69,12 @@ export default function usePayment(trip) {
     setNotice(null);
   }
 
-  // Sección 12: el pasajero cerró el navegador o Mercado Pago no pudo avisar al backend.
+  // El aviso de devolver el efectivo sale del viaje que llega de Firestore y no de un
+  // estado: así aparece en cualquier orden de la carrera, también si la escritura del
+  // efectivo pasó del tiempo límite.
+  const cardWon = cashConfirmed && status === TRIP_STATUS.PAID && paymentStatus === 'approved';
+
+  // El pasajero cerró el navegador o Mercado Pago no pudo avisar al backend.
   const verify = useCallback(
     () =>
       run(
@@ -121,7 +131,15 @@ export default function usePayment(trip) {
   }, [verify]);
 
   const receiveCash = useCallback(
-    () => run('cash', () => payOnce(markCashPaid, tripId), cashErrorKey),
+    () =>
+      run(
+        'cash',
+        async () => {
+          setCashConfirmed(true);
+          await payOnce(markCashPaid, tripId);
+        },
+        cashErrorKey
+      ),
     [run, tripId]
   );
 
@@ -133,8 +151,10 @@ export default function usePayment(trip) {
       run(
         'cashInstead',
         async () => {
+          setCashConfirmed(true);
           const { paymentStatus: found } = await syncPayment(tripId);
-          if (found === 'approved') return;
+          // Aprobado con tarjeta, o ya cobrado en efectivo desde otro teléfono.
+          if (found === 'approved' || found === 'cash') return;
           if (found !== 'rejected') {
             setNotice('payment.cashInsteadWait');
             return;
@@ -159,5 +179,14 @@ export default function usePayment(trip) {
     [run, tripId]
   );
 
-  return { pay, verify, receiveCash, receiveCashInstead, rate, pending, error, notice };
+  return {
+    pay,
+    verify,
+    receiveCash,
+    receiveCashInstead,
+    rate,
+    pending,
+    error,
+    notice: cardWon ? 'payment.cardWonReturnCash' : notice,
+  };
 }

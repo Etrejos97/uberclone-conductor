@@ -7,7 +7,6 @@ import { formStyles } from './formStyles';
 import {
   GENDERS,
   NAME_MAX_LENGTH,
-  RENEWAL_WINDOW_DAYS,
   SHORT_TEXT_MAX_LENGTH,
   TECH_REVIEW_FROM_YEARS,
   VEHICLE_COLORS,
@@ -40,28 +39,27 @@ function GenderField({ field }) {
   );
 }
 
-// El autocompletado del teléfono es solo para el correo de la cuenta. El de
-// Mercado Pago puede ser otro y no lo tenía antes de sacar estos campos.
 function EmailField({ field, name, label }) {
   return (
-    <FormField
-      label={label}
-      keyboardType="email-address"
-      autoCapitalize="none"
-      autoComplete={name === 'email' ? 'email' : undefined}
-      {...field(name)}
-    />
+    <FormField label={label} keyboardType="email-address" autoCapitalize="none" autoComplete="email" {...field(name)} />
   );
 }
 
-// Perfil no muestra la foto: después del registro queda fija.
+// VA-01 a VA-07. Perfil no muestra la foto: después del registro queda fija.
 export function PersonalDataFields({ field, withPhoto = true }) {
   const { t } = useSettings();
   const today = new Date();
 
   return (
     <>
-      {withPhoto ? <PhotoPicker label={t('registration.profilePhoto')} {...field('profilePhoto')} /> : null}
+      {withPhoto ? (
+        <PhotoPicker
+          label={t('registration.profilePhoto')}
+          shape="profile"
+          hint={t('photo.profileHint')}
+          {...field('profilePhoto')}
+        />
+      ) : null}
       <FormField
         label={t('registration.fullName')}
         autoCapitalize="words"
@@ -141,6 +139,7 @@ export function VehicleFields({ field }) {
       />
       <PhotoPicker
         label={t('registration.vehiclePhoto')}
+        shape="vehicle"
         hint={t('registration.vehiclePhotoHint')}
         {...field('vehiclePhoto')}
       />
@@ -149,30 +148,32 @@ export function VehicleFields({ field }) {
 }
 
 // La foto y el vencimiento de un documento: 'license', 'soat' o
-// 'techInspection'. Los usan el registro y Renovar documentos. Al renovar, el
-// selector no ofrece fechas dentro de la ventana de renovación: la fecha de un
-// documento nuevo cae después de RENEWAL_WINDOW_DAYS días.
-export function ExpiringDocumentFields({ name, field, renewing = false }) {
+// 'techInspection'. Los usan el registro y Renovar documentos.
+export function ExpiringDocumentFields({ name, field }) {
   const { t } = useSettings();
   const today = new Date();
-  const earliestDay = renewing ? RENEWAL_WINDOW_DAYS : 1;
-  const earliest = new Date(today.getFullYear(), today.getMonth(), today.getDate() + earliestDay);
+  const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
 
   return (
     <>
-      <PhotoPicker label={t(`registration.${name}Photo`)} {...field(`${name}Photo`)} />
+      <PhotoPicker
+        label={t(`registration.${name}Photo`)}
+        shape="document"
+        frameText={t(`registration.${name}Frame`)}
+        {...field(`${name}Photo`)}
+      />
       <DateField
         label={t(`registration.${name}ExpiresAt`)}
-        minimumDate={earliest}
+        minimumDate={tomorrow}
         maximumDate={name === 'soat' ? maxSoatExpiry(today) : undefined}
-        initialDate={earliest}
+        initialDate={tomorrow}
         {...field(`${name}ExpiresAt`)}
       />
     </>
   );
 }
 
-// Los términos (VA-20) solo se aceptan al registrarse, así que
+// VA-16 a VA-19. Los términos (VA-20) solo se aceptan al registrarse, así que
 // la casilla la pone la pestaña de Documentos del registro.
 export function DocumentsFields({ field, values }) {
   const { t } = useSettings();

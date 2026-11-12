@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Button, Keyboard, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Keyboard, StyleSheet, Text, View } from 'react-native';
 import { usePreventRemove } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AppButton from '../../components/AppButton';
 import FieldError from '../../components/FieldError';
 import FormScrollView from '../../components/FormScrollView';
 import LoadingState from '../../components/LoadingState';
@@ -11,10 +13,12 @@ import {
   PersonalDataFields,
   VehicleFields,
 } from '../../components/DriverFormFields';
-import { colors, formStyles } from '../../components/formStyles';
+import { formStyles } from '../../components/formStyles';
+import { editsWholeProfile } from '../../domain/driverProfile';
 import useProfileEdit from '../../hooks/useProfileEdit';
 import { useSession } from '../../context/SessionContext';
 import { useSettings } from '../../context/SettingsContext';
+import { colors, fonts } from '../../theme';
 
 // El título de cada forma de editar el perfil (useProfileEdit explica cada una).
 export const EDIT_TITLES = {
@@ -42,6 +46,7 @@ export default function ProfileEditScreen({ navigation, route }) {
 
 function ProfileEditForm({ mode, driverId, driver, navigation }) {
   const { t } = useSettings();
+  const insets = useSafeAreaInsets();
   const { field, values, isComplete, dirty, save, saving, saveError, documents } = useProfileEdit(
     driverId,
     driver,
@@ -63,6 +68,17 @@ function ProfileEditForm({ mode, driverId, driver, navigation }) {
     if (await save()) setSaved(true);
   }
 
+  // Si el aprobador aprueba la cuenta mientras la corrijo, las reglas ya no
+  // aceptan el registro completo: aviso en vez de dejar guardar algo que va a
+  // fallar. `driver` llega en tiempo real de la sesión.
+  if (mode === 'full' && !saving && !saved && !editsWholeProfile(driver.approvalStatus)) {
+    return (
+      <View style={styles.content}>
+        <Text style={formStyles.hint}>{t('profile.approvedWhileEditing')}</Text>
+      </View>
+    );
+  }
+
   // Inicio o un Perfil abierto desde antes pueden llegar aquí cuando ya no hay nada por renovar.
   if (mode === 'renewal' && documents.length === 0) {
     return (
@@ -73,7 +89,7 @@ function ProfileEditForm({ mode, driverId, driver, navigation }) {
   }
 
   return (
-    <FormScrollView contentContainerStyle={styles.content}>
+    <FormScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}>
       {/* Bloqueo los campos mientras guardo: save usa lo que había al tocar el botón. */}
       <View pointerEvents={saving ? 'none' : 'auto'} style={styles.fields}>
         {mode === 'contact' ? <ContactFields field={field} /> : null}
@@ -82,7 +98,7 @@ function ProfileEditForm({ mode, driverId, driver, navigation }) {
           <>
             <Text style={formStyles.hint}>{t('profile.renewalHint')}</Text>
             {documents.map((name) => (
-              <ExpiringDocumentFields key={name} name={name} field={field} renewing />
+              <ExpiringDocumentFields key={name} name={name} field={field} />
             ))}
           </>
         ) : null}
@@ -103,19 +119,18 @@ function ProfileEditForm({ mode, driverId, driver, navigation }) {
       <View style={styles.submit}>
         {saving ? (
           <View style={styles.row}>
-            <ActivityIndicator />
+            <ActivityIndicator color={colors.primary} />
             <Text style={formStyles.hint}>{t('profile.saving')}</Text>
           </View>
         ) : (
-          <Button
+          <AppButton
             title={mode === 'contact' ? t('profile.save') : t('profile.submit')}
             onPress={handleSave}
             disabled={!isComplete || !dirty}
-            color={colors.primary}
           />
         )}
         {!isComplete ? (
-          <Text style={formStyles.hint}>
+          <Text style={[formStyles.hint, styles.center]}>
             {mode === 'renewal' ? t('profile.renewalIncomplete') : t('profile.fixErrors')}
           </Text>
         ) : null}
@@ -128,7 +143,8 @@ function ProfileEditForm({ mode, driverId, driver, navigation }) {
 const styles = StyleSheet.create({
   content: { padding: 20, gap: 18, paddingBottom: 40 },
   fields: { gap: 18 },
-  section: { fontSize: 17, fontWeight: '700', color: colors.text, marginTop: 8 },
+  section: { fontSize: 17, fontFamily: fonts.bold, color: colors.text, marginTop: 8 },
   submit: { marginTop: 8, gap: 8 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, minHeight: 54 },
+  center: { textAlign: 'center' },
 });

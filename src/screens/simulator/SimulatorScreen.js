@@ -1,5 +1,7 @@
 import { useRef, useState } from 'react';
-import { Button, StyleSheet, Text } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AppButton from '../../components/AppButton';
 import FormField from '../../components/FormField';
 import FormScrollView from '../../components/FormScrollView';
 import SelectField from '../../components/SelectField';
@@ -11,6 +13,7 @@ import { validateSimulatedTrip } from '../../domain/validators';
 import { createTrip, getTripStatusFromServer, newTripId } from '../../services/tripService';
 import { useSession } from '../../context/SessionContext';
 import { useSettings } from '../../context/SettingsContext';
+import { colors, fonts, radius } from '../../theme';
 
 const PLACE_OPTIONS = SIMULATOR_PLACES.map((place) => ({ value: place.id, label: place.label }));
 
@@ -20,9 +23,12 @@ function toPlace(id) {
 }
 
 // Cliente simulado: crea una solicitud para el conductor de este
-// teléfono, como lo haría la app del pasajero.
+// teléfono, como lo haría la app del pasajero. Se puede pedir cualquier
+// categoría, pero solo se crea la solicitud de la categoría del vehículo: las
+// otras no tienen conductor que las reciba.
 export default function SimulatorScreen({ navigation }) {
   const { t } = useSettings();
+  const insets = useSafeAreaInsets();
   const { driverId, driver } = useSession();
   const [values, setValues] = useState(() => ({
     origin: '',
@@ -40,7 +46,7 @@ export default function SimulatorScreen({ navigation }) {
   // Marcado antes del primer await: un doble toque no envía dos veces.
   const sendingNow = useRef(false);
 
-  const errors = validateSimulatedTrip(values);
+  const errors = validateSimulatedTrip(values, driver?.vehicle?.category);
   const shown = submitted ? errors : {};
 
   function set(name) {
@@ -82,10 +88,14 @@ export default function SimulatorScreen({ navigation }) {
   }
 
   return (
-    <FormScrollView contentContainerStyle={styles.container}>
+    <FormScrollView contentContainerStyle={[styles.container, { paddingBottom: insets.bottom + 24 }]}>
       <Text style={formStyles.hint}>{t('simulator.intro')}</Text>
       {/* La solicitud se crea igual, pero solo llega a Inicio si el conductor está Disponible. */}
-      {!driver?.isAvailable ? <Text style={styles.warning}>{t('simulator.notAvailable')}</Text> : null}
+      {!driver?.isAvailable ? (
+        <View style={styles.warning}>
+          <Text style={styles.warningText}>{t('simulator.notAvailable')}</Text>
+        </View>
+      ) : null}
 
       <SelectField
         label={t('simulator.origin')}
@@ -129,7 +139,7 @@ export default function SimulatorScreen({ navigation }) {
       />
 
       <FieldError error={sendError} />
-      <Button
+      <AppButton
         title={t(sending ? 'simulator.sending' : 'simulator.send')}
         onPress={send}
         disabled={sending}
@@ -140,5 +150,12 @@ export default function SimulatorScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { padding: 16, gap: 16 },
-  warning: { color: '#8A5A00', fontSize: 14 },
+  warning: {
+    backgroundColor: colors.warningSoft,
+    borderWidth: 1,
+    borderColor: colors.warning,
+    borderRadius: radius.input,
+    padding: 12,
+  },
+  warningText: { color: colors.warning, fontSize: 14, lineHeight: 20, fontFamily: fonts.medium },
 });

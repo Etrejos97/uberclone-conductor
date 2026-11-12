@@ -1,21 +1,26 @@
-import { ActivityIndicator, Alert, Button, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import AppButton from '../../components/AppButton';
 import FieldError from '../../components/FieldError';
 import InfoRow from '../../components/InfoRow';
 import StatusBadge from '../../components/StatusBadge';
-import { colors, formStyles } from '../../components/formStyles';
+import { formStyles } from '../../components/formStyles';
 import { RATINGS } from '../../config/app';
 import { useSettings } from '../../context/SettingsContext';
 import { amountToCharge, canSwitchToCash, paymentStatusKey } from '../../domain/payment';
 import { TRIP_STATUS as S } from '../../domain/tripStateMachine';
 import usePayment from '../../hooks/usePayment';
 import { formatMoney } from '../../i18n/format';
+import { card, colors, fonts, radius } from '../../theme';
 
-const TONE = { approved: 'success', cash: 'success', pending: 'warning', rejected: 'danger' };
+// El efectivo va en gris: es un método de pago, no un pago aprobado.
+const TONE = { approved: 'success', cash: 'neutral', pending: 'warning', rejected: 'danger' };
 
 // Cobro. Todo lo que se ve sale de `trip`, en tiempo real. Conductor y
-// pasajero comparten este teléfono: el pago con Mercado Pago y la calificación
+// pasajero comparten este teléfono (D-01): el pago con Mercado Pago y la calificación
 // son del cliente simulado, y recibir el efectivo es del conductor.
+// Un solo botón verde por pantalla: el que cierra el paso.
 export default function PaymentScreen({ trip }) {
   const { t, language } = useSettings();
   const insets = useSafeAreaInsets();
@@ -26,7 +31,7 @@ export default function PaymentScreen({ trip }) {
   const isCash = trip.paymentMethod === 'cash';
   const busy = payment.pending !== null;
   const total = formatMoney(amountToCharge(trip), language);
-  // El backend solo tarda cuando Render lo está despertando.
+  // El backend solo tarda cuando Render lo está despertando (R-02).
   const waitingBackend = ['checkout', 'verify', 'cashInstead'].includes(payment.pending);
 
   function confirmCash(onConfirm) {
@@ -54,7 +59,7 @@ export default function PaymentScreen({ trip }) {
 
       {waitingBackend ? (
         <View style={styles.waiting}>
-          <ActivityIndicator />
+          <ActivityIndicator color={colors.primary} />
           <Text style={formStyles.hint}>{t('payment.connecting')}</Text>
         </View>
       ) : null}
@@ -62,7 +67,7 @@ export default function PaymentScreen({ trip }) {
       {!isPaid && isCash ? (
         <View style={styles.actions}>
           <Text style={formStyles.hint}>{t('payment.cashHint', { amount: total })}</Text>
-          <Button
+          <AppButton
             title={t('payment.cashReceived')}
             onPress={() => confirmCash(payment.receiveCash)}
             disabled={busy}
@@ -73,13 +78,13 @@ export default function PaymentScreen({ trip }) {
       {!isPaid && !isCash ? (
         <View style={styles.actions}>
           <Text style={styles.section}>{t('payment.client')}</Text>
-          <Button
+          <AppButton
             title={t(statusKey === 'rejected' ? 'payment.payAgain' : 'payment.pay')}
             onPress={payment.pay}
             disabled={busy}
           />
           <Text style={formStyles.hint}>{t('payment.verifyHint')}</Text>
-          <Button title={t('payment.verify')} onPress={payment.verify} disabled={busy} />
+          <AppButton title={t('payment.verify')} onPress={payment.verify} disabled={busy} variant="secondary" />
         </View>
       ) : null}
 
@@ -87,10 +92,11 @@ export default function PaymentScreen({ trip }) {
         <View style={styles.actions}>
           <Text style={styles.section}>{t('payment.driver')}</Text>
           <Text style={formStyles.hint}>{t('payment.cashInsteadHint', { amount: total })}</Text>
-          <Button
+          <AppButton
             title={t('payment.cashInstead')}
             onPress={() => confirmCash(payment.receiveCashInstead)}
             disabled={busy}
+            variant="secondary"
           />
         </View>
       ) : null}
@@ -101,14 +107,18 @@ export default function PaymentScreen({ trip }) {
           <Text style={formStyles.label}>{t('payment.rateTitle')}</Text>
           <View style={styles.ratings}>
             {RATINGS.map((value) => (
-              <View key={value} style={styles.rating}>
-                <Button
-                  title={String(value)}
-                  accessibilityLabel={t('payment.rateValue', { value })}
-                  onPress={() => payment.rate(value)}
-                  disabled={busy}
-                />
-              </View>
+              <Pressable
+                key={value}
+                onPress={() => payment.rate(value)}
+                disabled={busy}
+                accessibilityRole="button"
+                accessibilityLabel={t('payment.rateValue', { value })}
+                accessibilityState={{ disabled: busy }}
+                style={({ pressed }) => [styles.rating, pressed && styles.ratingPressed, busy && styles.ratingBusy]}
+              >
+                <Text style={styles.ratingText}>{value}</Text>
+                <Ionicons name="star" size={14} color={colors.primary} />
+              </Pressable>
             ))}
           </View>
           <Text style={formStyles.hint}>{t('payment.rateHint')}</Text>
@@ -122,14 +132,28 @@ export default function PaymentScreen({ trip }) {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 24, gap: 20 },
+  content: { padding: 20, gap: 20 },
   status: { alignItems: 'center', gap: 8 },
-  summary: { gap: 8, borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 16 },
-  divider: { height: 1, backgroundColor: colors.border, marginVertical: 4 },
+  summary: { ...card, gap: 10, padding: 16 },
+  divider: { height: 1, backgroundColor: colors.border, marginVertical: 2 },
   waiting: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   actions: { gap: 12 },
-  section: { fontSize: 16, fontWeight: '700', color: colors.text },
+  section: { fontSize: 16, fontFamily: fonts.bold, color: colors.text },
   ratings: { flexDirection: 'row', gap: 8 },
-  rating: { flex: 1 },
+  rating: {
+    flex: 1,
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    borderRadius: radius.input,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceRaised,
+  },
+  ratingPressed: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  ratingBusy: { opacity: 0.5 },
+  ratingText: { color: colors.text, fontSize: 16, fontFamily: fonts.bold },
   notice: { textAlign: 'center' },
 });

@@ -1,29 +1,24 @@
 import { StyleSheet } from 'react-native';
+import { colors, fonts, radius } from '../theme';
 
 // Estilos que comparten todos los campos del formulario.
-export const colors = {
-  text: '#1A1A1A',
-  muted: '#666666',
-  border: '#C7C7CC',
-  error: '#B00020',
-  primary: '#111111',
-  background: '#FFFFFF',
-};
-
 export const formStyles = StyleSheet.create({
   field: { gap: 6 },
-  label: { fontSize: 15, fontWeight: '600', color: colors.text },
+  label: { fontSize: 14, fontFamily: fonts.semibold, color: colors.muted },
   input: {
+    minHeight: 52,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    borderRadius: radius.input,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     fontSize: 16,
+    fontFamily: fonts.medium,
     color: colors.text,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surfaceRaised,
   },
-  inputError: { borderColor: colors.error },
-  error: { color: colors.error, fontSize: 13 },
-  hint: { color: colors.muted, fontSize: 13 },
+  inputFocused: { borderColor: colors.primary },
+  inputError: { borderColor: colors.danger },
+  error: { color: colors.danger, fontSize: 13, fontFamily: fonts.medium },
+  hint: { color: colors.muted, fontSize: 13, lineHeight: 19, fontFamily: fonts.regular },
 });

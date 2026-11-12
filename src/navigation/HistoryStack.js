@@ -1,6 +1,7 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { DrawerToggleButton } from '@react-navigation/drawer';
+import MenuButton from '../components/MenuButton';
 import { useSettings } from '../context/SettingsContext';
+import { headerTitle } from '../theme';
 import HistoryListScreen from '../screens/history/HistoryListScreen';
 import HistoryDetailScreen from '../screens/history/HistoryDetailScreen';
 
@@ -12,11 +13,11 @@ export default function HistoryStack() {
   const { t } = useSettings();
 
   return (
-    <Stack.Navigator>
+    <Stack.Navigator screenOptions={{ headerTitleStyle: headerTitle }}>
       <Stack.Screen
         name="HistoryList"
         component={HistoryListScreen}
-        options={{ title: t('history.list'), headerLeft: () => <DrawerToggleButton /> }}
+        options={{ title: t('history.list'), headerLeft: ({ tintColor }) => <MenuButton tintColor={tintColor} /> }}
       />
       <Stack.Screen
         name="HistoryDetail"

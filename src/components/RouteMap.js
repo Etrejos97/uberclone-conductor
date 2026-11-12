@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { colors, fonts } from '../theme';
 
 // Mapa de Leaflet con teselas de OpenStreetMap dentro de un WebView.
 // Es el único archivo que conoce Leaflet: las pantallas le pasan datos por props
@@ -8,8 +9,13 @@ import { WebView } from 'react-native-webview';
 //
 // Props:
 //   center:  { latitude, longitude }             punto al que se centra el mapa
-//   markers: [{ id, latitude, longitude, label, color }]
+//   markers: [{ id, latitude, longitude, label, color, borderColor }]
 //   route:   [{ latitude, longitude }]           polilínea de la ruta (de OSRM)
+//
+// OpenStreetMap no tiene teselas oscuras gratis, así que oscurezco las normales
+// con un filtro: invertir los colores y girar el tono deja las calles grises
+// sobre fondo negro y el agua azul oscura. Los colores de la página salen del
+// tema, por eso van dentro del texto con ${}.
 
 const LEAFLET_VERSION = '1.9.4';
 
@@ -24,7 +30,13 @@ const html = `<!DOCTYPE html>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@${LEAFLET_VERSION}/dist/leaflet.css"
     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-  <style>html, body, #map { margin: 0; height: 100%; }</style>
+  <style>
+    html, body, #map { margin: 0; height: 100%; background: ${colors.background}; }
+    .leaflet-container { background: ${colors.background}; }
+    .leaflet-tile-pane { filter: invert(100%) hue-rotate(180deg) brightness(92%) contrast(88%) saturate(0.3); }
+    .leaflet-control-attribution { background: ${colors.overlay} !important; color: ${colors.faint} !important; }
+    .leaflet-control-attribution a { color: ${colors.muted} !important; }
+  </style>
 </head>
 <body>
   <div id="map"></div>
@@ -50,15 +62,9 @@ const html = `<!DOCTYPE html>
     window.updateMap = function (state) {
       layers.clearLayers();
 
-      state.markers.forEach(function (m) {
-        L.circleMarker([m.latitude, m.longitude], {
-          radius: 9, color: '#FFFFFF', weight: 3, fillColor: m.color || '#1A73E8', fillOpacity: 1,
-        }).bindTooltip(m.label || '').addTo(layers);
-      });
-
       if (state.route.length > 1) {
         var points = state.route.map(function (p) { return [p.latitude, p.longitude]; });
-        L.polyline(points, { color: '#1A73E8', weight: 5 }).addTo(layers);
+        L.polyline(points, { color: '${colors.primary}', weight: 5 }).addTo(layers);
         var routeKey = JSON.stringify(points[0]) + JSON.stringify(points[points.length - 1]);
         if (routeKey !== lastRouteKey) {
           map.fitBounds(points, { padding: [40, 40] });
@@ -68,6 +74,17 @@ const html = `<!DOCTYPE html>
         map.setView([state.center.latitude, state.center.longitude], 16);
         centered = true;
       }
+
+      // Los puntos van después de la ruta para quedar encima de la línea.
+      state.markers.forEach(function (m) {
+        L.circleMarker([m.latitude, m.longitude], {
+          radius: 9,
+          color: m.borderColor || '${colors.markerBorder}',
+          weight: 3,
+          fillColor: m.color || '${colors.primary}',
+          fillOpacity: 1,
+        }).bindTooltip(m.label || '').addTo(layers);
+      });
     };
 
     send({ type: 'ready' });
@@ -112,14 +129,16 @@ export default function RouteMap({ center = null, markers = NO_MARKERS, route = 
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  map: { flex: 1 },
+  container: { flex: 1, backgroundColor: colors.background },
+  // El fondo del WebView también va oscuro: sin él, se ve un destello blanco
+  // mientras carga la página.
+  map: { flex: 1, backgroundColor: colors.background },
   overlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFFEE',
+    backgroundColor: colors.overlay,
     padding: 24,
   },
-  error: { color: '#B00020', textAlign: 'center' },
+  error: { color: colors.danger, textAlign: 'center', fontSize: 15, fontFamily: fonts.medium },
 });

@@ -3,16 +3,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ErrorState from '../../components/ErrorState';
 import InfoRow from '../../components/InfoRow';
 import LoadingState from '../../components/LoadingState';
-import { colors, formStyles } from '../../components/formStyles';
+import { formStyles } from '../../components/formStyles';
 import { useSession } from '../../context/SessionContext';
 import { useSettings } from '../../context/SettingsContext';
 import useEarnings from '../../hooks/useEarnings';
 import { formatMoney } from '../../i18n/format';
+import { card, colors, fonts } from '../../theme';
 
 const PERIODS = ['today', 'week', 'month'];
 
 // Ganancias. El saldo y los resúmenes salen de los viajes pagados,
-// que la app escucha en tiempo real.
+// que la app escucha en tiempo real. El saldo va en verde, o en rojo si es negativo.
 export default function EarningsScreen() {
   const { t, language } = useSettings();
   const insets = useSafeAreaInsets();
@@ -38,7 +39,9 @@ export default function EarningsScreen() {
         const summary = earnings[period];
         return (
           <View key={period} style={styles.card}>
-            <Text style={styles.title}>{t(`earnings.${period}`)}</Text>
+            <Text style={styles.title} accessibilityRole="header">
+              {t(`earnings.${period}`)}
+            </Text>
             <InfoRow label={t('earnings.trips')} value={String(summary.trips)} />
             <InfoRow label={t('earnings.billed')} value={money(summary.billed)} />
             <InfoRow label={t('earnings.commissions')} value={money(summary.commissions)} />
@@ -53,9 +56,9 @@ export default function EarningsScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 24, gap: 16 },
-  card: { gap: 8, borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 16 },
-  title: { fontSize: 17, fontWeight: '700', color: colors.text },
-  balance: { fontSize: 28, fontWeight: '700', color: colors.text },
-  negative: { color: colors.error },
+  content: { padding: 20, gap: 16 },
+  card: { ...card, gap: 10, padding: 16 },
+  title: { fontSize: 16, fontFamily: fonts.bold, color: colors.text },
+  balance: { fontSize: 34, fontFamily: fonts.extrabold, color: colors.primary, letterSpacing: -0.8 },
+  negative: { color: colors.danger },
 });

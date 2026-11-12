@@ -41,7 +41,7 @@ function withoutNulls(errors) {
   return Object.fromEntries(Object.entries(errors).filter(([, error]) => error !== null));
 }
 
-// y las fotos de documentos: basta con que haya una imagen elegida.
+// La foto de documentos: basta con que haya una imagen elegida.
 export function validatePhoto(uri) {
   return isBlank(uri) ? 'errors.photoRequired' : null;
 }
@@ -238,7 +238,7 @@ export function validateProfile(values, today = new Date()) {
     capacity: validateCapacity(values.capacity, values.category),
     vehiclePhoto: validatePhotoFile(values.vehiclePhoto),
 
-    // VA-16: en Colombia el número de la licencia es el de la cédula del conductor.
+    // En Colombia el número de la licencia es el de la cédula del conductor.
     licenseNumber: validateIdNumber(values.licenseNumber),
     licensePhoto: validatePhotoFile(values.licensePhoto),
     licenseExpiresAt: validateExpiryDate(values.licenseExpiresAt, today),
@@ -273,7 +273,9 @@ export function validateTip(value) {
   return Number.isSafeInteger(Number(text)) ? null : 'errors.tipTooLarge';
 }
 
-export function validateSimulatedTrip(values) {
+// vehicleCategory es la categoría del vehículo del conductor. Una solicitud de
+// otra categoría no tiene a quién llegar, así que el simulador no la crea.
+export function validateSimulatedTrip(values, vehicleCategory) {
   const placeIds = SIMULATOR_PLACES.map((place) => place.id);
   const errors = {
     origin: validateOption(values.origin, placeIds),
@@ -284,6 +286,9 @@ export function validateSimulatedTrip(values) {
   };
   if (!errors.origin && !errors.destination && values.origin === values.destination) {
     errors.destination = 'errors.sameDestination';
+  }
+  if (!errors.category && vehicleCategory && values.category !== vehicleCategory) {
+    errors.category = 'errors.noDriverForCategory';
   }
   return Object.fromEntries(Object.entries(errors).filter(([, error]) => error !== null));
 }

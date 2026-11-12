@@ -1,6 +1,7 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSettings } from '../context/SettingsContext';
 import { RegistrationProvider } from '../context/RegistrationContext';
+import { colors, fonts } from '../theme';
 import PersonalDataScreen from '../screens/registration/PersonalDataScreen';
 import VehicleScreen from '../screens/registration/VehicleScreen';
 import DocumentsScreen from '../screens/registration/DocumentsScreen';
@@ -12,6 +13,7 @@ const Tab = createBottomTabNavigator();
 // En Android la app va de borde a borde y la ventana no se achica con el
 // teclado, así que el teclado tapa la barra de pestañas. Por eso la escondo
 // mientras el teclado está abierto, y vuelve al cerrarlo.
+// Las pestañas no llevan ícono: el texto basta y la activa va en verde.
 export default function RegistrationTabs() {
   const { t } = useSettings();
 
@@ -20,7 +22,11 @@ export default function RegistrationTabs() {
       <Tab.Navigator
         screenOptions={{
           tabBarIcon: () => null,
-          tabBarLabelStyle: { fontSize: 13 },
+          tabBarIconStyle: { display: 'none' },
+          tabBarLabelStyle: { fontSize: 13, fontFamily: fonts.semibold },
+          tabBarActiveTintColor: colors.primary,
+          tabBarInactiveTintColor: colors.faint,
+          tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
           tabBarHideOnKeyboard: true,
         }}
       >

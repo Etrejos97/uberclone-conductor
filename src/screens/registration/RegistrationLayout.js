@@ -1,10 +1,12 @@
-import { ActivityIndicator, Button, Keyboard, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Keyboard, StyleSheet, Text, View } from 'react-native';
+import AppButton from '../../components/AppButton';
 import FieldError from '../../components/FieldError';
 import FormScrollView from '../../components/FormScrollView';
-import { colors, formStyles } from '../../components/formStyles';
+import { formStyles } from '../../components/formStyles';
 import { useRegistration } from '../../context/RegistrationContext';
 import { useSession } from '../../context/SessionContext';
 import { useSettings } from '../../context/SettingsContext';
+import { colors } from '../../theme';
 
 const TAB_LABELS = {
   PersonalData: 'registration.personal',
@@ -13,7 +15,7 @@ const TAB_LABELS = {
 };
 
 // Marco de las tres pestañas: los campos con scroll y, al final, el botón
-// "Enviar registro", que está en las tres (RF-03).
+// "Enviar registro", que está en las tres.
 export default function RegistrationLayout({ children }) {
   const { t } = useSettings();
   const { isComplete, incompleteTabs, failedUploadTabs, submit, submitting, submitError } = useRegistration();
@@ -38,24 +40,19 @@ export default function RegistrationLayout({ children }) {
       <View style={styles.submit}>
         {submitting ? (
           <View style={styles.row}>
-            <ActivityIndicator />
+            <ActivityIndicator color={colors.primary} />
             <Text style={formStyles.hint}>{t('registration.submitting')}</Text>
           </View>
         ) : (
-          <Button
-            title={t('registration.submit')}
-            onPress={handleSubmit}
-            disabled={!isComplete}
-            color={colors.primary}
-          />
+          <AppButton title={t('registration.submit')} onPress={handleSubmit} disabled={!isComplete} />
         )}
         {!isComplete ? (
-          <Text style={formStyles.hint}>
+          <Text style={[formStyles.hint, styles.center]}>
             {t('registration.missingIn')} {tabNames(incompleteTabs)}
           </Text>
         ) : null}
         {failedUploadTabs.length > 0 ? (
-          <Text style={formStyles.hint}>
+          <Text style={[formStyles.hint, styles.center]}>
             {t('registration.uploadFailedIn')} {tabNames(failedUploadTabs)}
           </Text>
         ) : null}
@@ -69,5 +66,6 @@ const styles = StyleSheet.create({
   content: { padding: 20, gap: 18, paddingBottom: 40 },
   fields: { gap: 18 },
   submit: { marginTop: 8, gap: 8 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, minHeight: 54 },
+  center: { textAlign: 'center' },
 });

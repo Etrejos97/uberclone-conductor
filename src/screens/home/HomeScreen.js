@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, ScrollView, StyleSheet, Switch, Text, useWindowDimensions, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
+import AppButton from '../../components/AppButton';
 import RouteMap from '../../components/RouteMap';
 import ErrorState from '../../components/ErrorState';
 import LoadingState from '../../components/LoadingState';
 import FieldError from '../../components/FieldError';
+import MapTray from '../../components/MapTray';
 import RequestCard from '../../components/RequestCard';
-import { colors, formStyles } from '../../components/formStyles';
+import StatusBadge, { APPROVAL_TONES } from '../../components/StatusBadge';
+import StatusPill from '../../components/StatusPill';
+import { formStyles } from '../../components/formStyles';
 import useDriverLocation from '../../hooks/useDriverLocation';
 import useTripRequests from '../../hooks/useTripRequests';
 import useCountdown from '../../hooks/useCountdown';
@@ -16,17 +20,20 @@ import { expiredDocuments } from '../../domain/validators';
 import { setAvailability } from '../../services/driverService';
 import { useSession } from '../../context/SessionContext';
 import { useSettings } from '../../context/SettingsContext';
+import { colors, fonts, radius } from '../../theme';
 
 const NO_ROUTE = [];
 
-// Inicio: el mapa con la ubicación actual, el interruptor Disponible / No
-// disponible (RF-05, RF-07 a RF-10) y la solicitud que esté llegando. El valor del interruptor es el `isAvailable` del conductor en Firestore.
+// Inicio: el mapa con la ubicación actual, el botón para ponerse disponible o
+// desconectarse y la solicitud que esté llegando.
+//  El estado del botón es el `isAvailable` del conductor en Firestore, y
+// la píldora sobre el mapa lo repite para verlo de un vistazo.
 export default function HomeScreen({ navigation }) {
   const { t, lastAvailability, setLastAvailability } = useSettings();
   const { driverId, driver, driverError, retryDriver } = useSession();
   const isFocused = useIsFocused();
   const isAvailable = driver?.isAvailable === true;
-  // RF-09: el menú lateral no desmonta Inicio, así que pauso el envío mientras
+  // El menú lateral no desmonta Inicio, así que pauso el envío mientras
   // el conductor está en otra pantalla y lo retomo al volver.
   const location = useDriverLocation(isAvailable && isFocused);
   // Las solicitudes también se escuchan solo con Inicio a la vista: al volver,
@@ -45,9 +52,7 @@ export default function HomeScreen({ navigation }) {
   const isApproved = driver?.approvalStatus === 'approved';
   // Un documento vencido también cierra la disponibilidad, hasta que el
   // conductor lo renueve en Perfil y el aprobador vuelva a aprobar la cuenta.
-  // Lo calculo en cada render, sin useMemo: un vencimiento que llega con la app
-  // abierta se nota al volver a Inicio, que se vuelve a pintar al enfocarse.
-  const expired = driver ? expiredDocuments(toFormValues(driver)) : [];
+  const expired = useMemo(() => (driver ? expiredDocuments(toFormValues(driver)) : []), [driver]);
   const canBeAvailable = isApproved && expired.length === 0 && location.status === 'ready';
 
   const changeAvailability = useCallback(
@@ -75,19 +80,21 @@ export default function HomeScreen({ navigation }) {
     if (next !== isAvailable) changeAvailability(next);
   }, [hasDriver, location.status, isAvailable, lastAvailability, canBeAvailable, changeAvailability]);
 
+  // El conductor en verde cuando está disponible; la recogida con el centro
+  // oscuro y el destino en verde, como en la tarjeta de la solicitud.
   const markers = useMemo(() => {
     const list = [];
+    if (request) {
+      list.push({ id: 'origin', ...request.origin, color: colors.background });
+      list.push({ id: 'destination', ...request.destination, color: colors.primary, borderColor: colors.primary });
+    }
     if (location.position) {
       list.push({
         id: 'driver',
         ...location.position,
         label: t('home.you'),
-        color: isAvailable ? '#1E8E3E' : '#5F6368',
+        color: isAvailable ? colors.primary : colors.faint,
       });
-    }
-    if (request) {
-      list.push({ id: 'origin', ...request.origin, color: '#1A73E8' });
-      list.push({ id: 'destination', ...request.destination, color: '#B00020' });
     }
     return list;
   }, [location.position, isAvailable, request, t]);
@@ -95,39 +102,55 @@ export default function HomeScreen({ navigation }) {
   if (driverError) return <ErrorState message={t(driverError)} onRetry={retryDriver} />;
   if (!driver) return <LoadingState message={t('common.loading')} />;
 
+  const approval = approvalTextKey(driver.approvalStatus);
+  const hasExpired = isApproved && expired.length > 0;
   const locationBlocked = ['denied', 'servicesOff', 'error'].includes(location.status);
   let fixLabel = 'common.retry';
   if (location.status === 'denied') fixLabel = location.canAskAgain ? 'home.allowLocation' : 'home.openSettings';
 
+  let headline = null;
+  if (!isApproved) headline = t(`home.headline.${approval}`);
+  else if (!hasExpired && !request) headline = t(isAvailable ? 'home.waiting' : 'home.headline.offline');
+
   return (
     <View style={styles.container}>
-      <RouteMap
-        center={location.position}
-        markers={markers}
-        route={request?.route?.coordinates ?? NO_ROUTE}
-      />
-      <View style={styles.panel}>
-        <Text style={styles.name}>
-          {driver.fullName} · {t(`approval.${approvalTextKey(driver.approvalStatus)}`)}
-        </Text>
-        <View style={styles.row}>
-          <Text style={styles.status}>{t(isAvailable ? 'home.available' : 'home.unavailable')}</Text>
-          <Switch
-            value={isAvailable}
-            onValueChange={changeAvailability}
-            disabled={!canBeAvailable && !isAvailable}
-            accessibilityLabel={t('home.availability')}
-          />
+      <View style={styles.map}>
+        <RouteMap
+          center={location.position}
+          markers={markers}
+          route={request?.route?.coordinates ?? NO_ROUTE}
+        />
+        <StatusPill label={t(isAvailable ? 'home.available' : 'home.unavailable')} on={isAvailable} />
+      </View>
+
+      <MapTray>
+        <View style={styles.between}>
+          <Text style={styles.name} numberOfLines={1}>
+            {driver.fullName}
+          </Text>
+          <StatusBadge label={t(`approval.${approval}`)} tone={APPROVAL_TONES[approval]} />
         </View>
-        {/* Con la cuenta sin aprobar el interruptor no cambia y digo por qué. */}
-        {!isApproved ? <Text style={formStyles.hint}>{t(`home.reason.${approvalTextKey(driver.approvalStatus)}`)}</Text> : null}
-        {isApproved && expired.length > 0 ? (
+
+        {headline ? (
+          <Text style={styles.headline} accessibilityRole="header">
+            {headline}
+          </Text>
+        ) : null}
+
+        {/* Con la cuenta sin aprobar el botón no se activa y digo por qué. */}
+        {!isApproved ? <Text style={formStyles.hint}>{t(`home.reason.${approval}`)}</Text> : null}
+        {isAvailable && !request && !requests.error ? (
+          <Text style={formStyles.hint}>{t('home.waitingHint')}</Text>
+        ) : null}
+        {hasExpired ? (
           <>
-            <Text style={formStyles.hint}>
-              {t('home.reason.expired', { documents: expired.map((name) => t(`document.${name}`)).join(', ') })}
-            </Text>
+            <View style={styles.warning}>
+              <Text style={styles.warningText}>
+                {t('home.reason.expired', { documents: expired.map((name) => t(`document.${name}`)).join(', ') })}
+              </Text>
+            </View>
             {/* initial: false deja el Perfil debajo, así la flecha de volver lleva ahí. */}
-            <Button
+            <AppButton
               title={t('profile.renew')}
               onPress={() =>
                 navigation.navigate('Profile', { screen: 'ProfileEdit', params: { mode: 'renewal' }, initial: false })
@@ -138,54 +161,76 @@ export default function HomeScreen({ navigation }) {
         {locationBlocked ? (
           <>
             <Text style={formStyles.hint}>{t(`home.reason.${location.status}`)}</Text>
-            <Button title={t(fixLabel)} onPress={location.fix} />
+            <AppButton title={t(fixLabel)} onPress={location.fix} />
           </>
         ) : null}
         <FieldError error={availabilityError || location.error} />
         {requests.error ? (
           <>
             <FieldError error={requests.error} />
-            <Button title={t('common.retry')} onPress={requests.retry} />
+            <AppButton title={t('common.retry')} onPress={requests.retry} variant="secondary" />
           </>
         ) : null}
-        <FieldError error={requests.actionError} />
-        {isAvailable && !request && !requests.error ? (
-          <Text style={formStyles.hint}>{t('home.waiting')}</Text>
-        ) : null}
+        {requests.actionError ? <FieldError error={requests.actionError} /> : null}
+
         {request ? (
-          <Text style={styles.listTitle}>{t('home.requests', { count: requests.requests.length })}</Text>
+          <>
+            {requests.requests.length > 1 ? (
+              <Text style={styles.listTitle}>{t('home.requests', { count: requests.requests.length })}</Text>
+            ) : null}
+            {/* La lista no pasa de la mitad de la pantalla, para que el mapa se siga viendo. */}
+            <ScrollView style={{ maxHeight: height * 0.5 }} contentContainerStyle={styles.listContent}>
+              {requests.requests.map((trip) => (
+                <RequestCard
+                  key={trip.id}
+                  trip={trip}
+                  remaining={remaining[trip.id] ?? REQUEST_TIMEOUT_S}
+                  selected={trip.id === request.id}
+                  onSelect={() => setSelectedId(trip.id)}
+                  quoteError={requests.quoteErrors[trip.id] ?? null}
+                  onRetryQuote={() => requests.retryQuote(trip.id)}
+                  onAccept={() => requests.accept(trip)}
+                  onReject={() => requests.reject(trip.id)}
+                  busy={requests.busy}
+                />
+              ))}
+            </ScrollView>
+          </>
         ) : null}
-      </View>
-      {request ? (
-        // La lista no pasa de la mitad de la pantalla, para que el mapa se siga viendo.
-        <ScrollView style={[styles.list, { maxHeight: height * 0.5 }]} contentContainerStyle={styles.listContent}>
-          {requests.requests.map((trip) => (
-            <RequestCard
-              key={trip.id}
-              trip={trip}
-              remaining={remaining[trip.id] ?? REQUEST_TIMEOUT_S}
-              selected={trip.id === request.id}
-              onSelect={() => setSelectedId(trip.id)}
-              quoteError={requests.quoteErrors[trip.id] ?? null}
-              onRetryQuote={() => requests.retryQuote(trip.id)}
-              onAccept={() => requests.accept(trip)}
-              onReject={() => requests.reject(trip.id)}
-              busy={requests.busy}
-            />
-          ))}
-        </ScrollView>
-      ) : null}
+
+        {isAvailable ? (
+          <AppButton
+            title={t('home.goOffline')}
+            onPress={() => changeAvailability(false)}
+            variant="secondary"
+            compact={Boolean(request)}
+          />
+        ) : (
+          <AppButton
+            title={t('home.goOnline')}
+            onPress={() => changeAvailability(true)}
+            disabled={!canBeAvailable}
+          />
+        )}
+      </MapTray>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  panel: { padding: 16, gap: 10, borderTopWidth: 1, borderTopColor: '#E0E0E0', backgroundColor: '#FFFFFF' },
-  name: { fontSize: 15, color: colors.muted },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  status: { fontSize: 20, fontWeight: '600', color: colors.text },
-  listTitle: { fontSize: 15, fontWeight: '600', color: colors.text },
-  list: { flexGrow: 0, backgroundColor: '#F5F5F5' },
-  listContent: { padding: 12, gap: 12 },
+  container: { flex: 1, backgroundColor: colors.background },
+  map: { flex: 1 },
+  between: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
+  name: { flexShrink: 1, fontSize: 14, fontFamily: fonts.medium, color: colors.muted },
+  headline: { fontSize: 22, fontFamily: fonts.bold, color: colors.text, letterSpacing: -0.2 },
+  warning: {
+    backgroundColor: colors.warningSoft,
+    borderWidth: 1,
+    borderColor: colors.warning,
+    borderRadius: radius.input,
+    padding: 12,
+  },
+  warningText: { color: colors.warning, fontSize: 14, lineHeight: 20, fontFamily: fonts.medium },
+  listTitle: { fontSize: 15, fontFamily: fonts.semibold, color: colors.text },
+  listContent: { gap: 12 },
 });

@@ -10,6 +10,7 @@ const KNOWN_API_ERRORS = [
   'TRIP_ALREADY_PAID',
   'TRIP_NOT_MERCADOPAGO',
   'AMOUNT_MISMATCH',
+  'PAYMENT_IN_PROCESS',
 ];
 
 // Lo que paga el pasajero. La propina va completa al conductor.
@@ -32,7 +33,7 @@ export function canSwitchToCash(trip) {
   );
 }
 
-// Sección 12 del diseño: un 4xx se traduce por su código. Un 5xx, la red o un código
+// Un 4xx se traduce por su código. Un 5xx, la red o un código
 // que la app no conoce terminan en el mismo mensaje general.
 export function apiErrorKey(error) {
   return KNOWN_API_ERRORS.includes(error?.code) ? `errors.api.${error.code}` : 'errors.apiFailed';
