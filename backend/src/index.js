@@ -2,17 +2,17 @@ require('dotenv').config({ quiet: true });
 const express = require('express');
 const healthRoutes = require('./routes/health');
 const paymentRoutes = require('./routes/payments');
+const tripRoutes = require('./routes/trips');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
-const firebaseAdmin = require('./services/firebaseAdmin');
 
 const REQUIRED_ENV = ['MP_ACCESS_TOKEN', 'FIREBASE_SERVICE_ACCOUNT'];
 
 function createApp() {
   const app = express();
-  app.disable('x-powered-by');
   app.use(express.json({ limit: '100kb' }));
   app.use(healthRoutes);
   app.use('/payments', paymentRoutes);
+  app.use('/trips', tripRoutes);
   app.use(notFound);
   app.use(errorHandler);
   return app;
@@ -26,12 +26,9 @@ if (require.main === module) {
     console.error(`Faltan variables de entorno: ${missing.join(', ')}`);
     process.exit(1);
   }
-  try {
-    firebaseAdmin.checkServiceAccount();
-  } catch (reason) {
-    console.error(reason.message);
-    process.exit(1);
-  }
+  // SIMULATOR_KEY no la exijo para arrancar: sin ella los cobros funcionan y
+  // /trips/simulate responde 401 a cualquier llave.
+  if (!process.env.SIMULATOR_KEY) console.warn('Falta SIMULATOR_KEY: /trips/simulate rechazará todas las solicitudes.');
   const port = process.env.PORT || 3000;
   createApp().listen(port, () => console.log(`Backend escuchando en el puerto ${port}`));
 }

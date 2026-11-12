@@ -1,6 +1,8 @@
-const { cert, getApps, initializeApp } = require('firebase-admin/app');
+const { cert, initializeApp } = require('firebase-admin/app');
 const { FieldValue, getFirestore } = require('firebase-admin/firestore');
+const { getMessaging: messagingOf } = require('firebase-admin/messaging');
 
+let app = null;
 let db = null;
 
 function readServiceAccount() {
@@ -13,20 +15,21 @@ function readServiceAccount() {
   }
 }
 
-// El arranque la llama para que un JSON mal pegado haga fallar el despliegue de una vez,
-// en lugar de descubrirse en el primer cobro. No inicializa Firebase.
-function checkServiceAccount() {
-  readServiceAccount();
+// Inicializo en el primer uso: así /health responde aunque Firestore tenga un problema.
+// Firestore y las notificaciones comparten la misma app: inicializarla dos veces falla.
+function getApp() {
+  if (!app) app = initializeApp({ credential: cert(readServiceAccount()) });
+  return app;
 }
 
-// Inicializo en el primer uso: así /health responde aunque Firestore tenga un problema.
-// Si un intento anterior dejó la app creada, la reuso en vez de crearla otra vez.
 function getDb() {
-  if (!db) {
-    if (getApps().length === 0) initializeApp({ credential: cert(readServiceAccount()) });
-    db = getFirestore();
-  }
+  if (!db) db = getFirestore(getApp());
   return db;
 }
 
-module.exports = { FieldValue, checkServiceAccount, getDb };
+// Firebase Cloud Messaging, con la misma cuenta de servicio.
+function getMessaging() {
+  return messagingOf(getApp());
+}
+
+module.exports = { FieldValue, getDb, getMessaging };
