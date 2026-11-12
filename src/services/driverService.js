@@ -103,9 +103,22 @@ export async function setAvailability(driverId, isAvailable) {
 
 // Al cerrar sesión sí espero la respuesta: si la app se cierra antes de que
 // vuelva la red, la escritura en cola se pierde y el conductor queda Disponible
-// en Firestore sin nadie detrás.
+// en Firestore sin nadie detrás. En la misma escritura suelto el token de FCM:
+// otro conductor puede ingresar en este teléfono, y las notificaciones de este ya
+// no son para él.
 export async function setUnavailableBeforeLogout(driverId) {
-  await withTimeout(setAvailability(driverId, false));
+  await withTimeout(
+    updateDoc(doc(drivers, driverId), { isAvailable: false, fcmToken: null, updatedAt: serverTimestamp() })
+  );
+}
+
+// El token de FCM al que el backend manda las solicitudes. Sin tiempo
+// límite, igual que la disponibilidad: sin red, la escritura queda en cola. Si
+// otro conductor ingresa en el mismo teléfono, los dos guardan el mismo token;
+// el backend solo avisa al que está Disponible, y cerrar sesión borra el token.
+// null también lo borra, cuando el conductor quita el permiso.
+export async function saveFcmToken(driverId, fcmToken) {
+  await updateDoc(doc(drivers, driverId), { fcmToken, updatedAt: serverTimestamp() });
 }
 
 // CRUD, borrar: el conductor elimina su cuenta. Solo estando No disponible,

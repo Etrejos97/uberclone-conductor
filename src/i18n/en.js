@@ -361,4 +361,5 @@ export default {
   'errors.profileSaveFailed': "I couldn't save your changes. Save again.",
   'errors.profileSaveConnection': "I couldn't confirm your changes were saved. Check your connection and save again.",
   'errors.profileAccountChanged': "Your account status changed while you were editing, so you can't save this anymore. Go back to your profile and open it again.",
+  'notifications.channel': 'Trip requests',
 };
