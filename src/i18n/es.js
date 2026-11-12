@@ -361,4 +361,5 @@ export default {
   'errors.profileSaveFailed': 'No pude guardar tus cambios. Vuelve a guardar.',
   'errors.profileSaveConnection': 'No pude confirmar que se guardaron tus cambios. Revisa la conexión y vuelve a guardar.',
   'errors.profileAccountChanged': 'El estado de tu cuenta cambió mientras editabas y ya no puedes guardar esto. Vuelve al perfil y ábrelo de nuevo.',
+  'notifications.channel': 'Solicitudes de viaje',
 };

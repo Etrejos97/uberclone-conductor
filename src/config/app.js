@@ -4,6 +4,9 @@ export const LOCATION_INTERVAL_MS = 5000; // Cada 5 s como mínimo
 export const LOCATION_DISTANCE_M = 10; // y solo si el conductor se movió 10 m
 
 export const REQUEST_TIMEOUT_S = 15; // Tiempo para aceptar una solicitud
+// Al abrir Inicio, una solicitud que no creó este teléfono vence después de 60 s
+// según la hora del servidor (domain/requestExpiry.js).
+export const STALE_REQUEST_S = 60;
 export const ROUTE_TIMEOUT_MS = 8000; // OSRM: después de 8 s doy la ruta por fallida
 export const OSRM_MIN_INTERVAL_MS = 1000; // El servidor público admite 1 solicitud por segundo
 
@@ -11,7 +14,7 @@ export const HISTORY_PAGE_SIZE = 20;
 
 export const RATINGS = [1, 2, 3, 4, 5];
 
-export const MIN_DRIVER_AGE = 18; 
+export const MIN_DRIVER_AGE = 18;
 export const NAME_MAX_LENGTH = 50;
 export const SHORT_TEXT_MAX_LENGTH = 30; // Marca y modelo
 // Capacidad permitida por categoría.
@@ -29,7 +32,7 @@ export const SOAT_VALIDITY_YEARS = 1;
 // días para vencer. Antes, la renovación está cerrada.
 export const RENEWAL_WINDOW_DAYS = 7;
 
-// VA-06 y VA-13: opciones de las listas desplegables. En Firestore quedan en
+// Opciones de las listas desplegables. En Firestore quedan en
 // inglés y la pantalla las traduce.
 export const GENDERS = ['female', 'male', 'other', 'undisclosed'];
 export const VEHICLE_COLORS = ['white', 'black', 'gray', 'silver', 'red', 'blue', 'green', 'other'];
@@ -43,7 +46,7 @@ export const UPLOAD_TIMEOUT_MS = 30000;
 // tiempo le digo al conductor que revise la conexión.
 export const SAVE_TIMEOUT_MS = 15000;
 
-// Cliente: métodos de pago y puntos fijos de Medellín para
+// Cliente simulado: métodos de pago y puntos fijos de Medellín para
 // origen y destino. OSRM ajusta cada punto a la vía más cercana.
 export const PAYMENT_METHODS = ['mercadopago', 'cash'];
 export const SIMULATOR_PLACES = [
@@ -55,7 +58,7 @@ export const SIMULATOR_PLACES = [
   { id: 'explora', label: 'Parque Explora', latitude: 6.2707, longitude: -75.5654 },
 ];
 
-export const BACKEND_WAKE_TIMEOUT_MS = 60000; // R-02: Render tarda en despertar
+export const BACKEND_WAKE_TIMEOUT_MS = 60000; // Render tarda en despertar
 
 export const CLOUDINARY_CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME;
 export const CLOUDINARY_UPLOAD_PRESET = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET;

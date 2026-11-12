@@ -14,6 +14,7 @@ import { formStyles } from '../../components/formStyles';
 import useDriverLocation from '../../hooks/useDriverLocation';
 import useTripRequests from '../../hooks/useTripRequests';
 import useCountdown from '../../hooks/useCountdown';
+import usePushNotifications from '../../hooks/usePushNotifications';
 import { REQUEST_TIMEOUT_S } from '../../config/app';
 import { approvalTextKey, toFormValues } from '../../domain/driverProfile';
 import { expiredDocuments } from '../../domain/validators';
@@ -25,21 +26,24 @@ import { colors, fonts, radius } from '../../theme';
 const NO_ROUTE = [];
 
 // Inicio: el mapa con la ubicación actual, el botón para ponerse disponible o
-// desconectarse y la solicitud que esté llegando.
-//  El estado del botón es el `isAvailable` del conductor en Firestore, y
+// desconectarse (RF-05, RF-07 a RF-10) y la solicitud que esté llegando (RF-12 a
+// RF-14). El estado del botón es el `isAvailable` del conductor en Firestore, y
 // la píldora sobre el mapa lo repite para verlo de un vistazo.
 export default function HomeScreen({ navigation }) {
   const { t, lastAvailability, setLastAvailability } = useSettings();
   const { driverId, driver, driverError, retryDriver } = useSession();
   const isFocused = useIsFocused();
   const isAvailable = driver?.isAvailable === true;
-  // El menú lateral no desmonta Inicio, así que pauso el envío mientras
+  // RF-09: el menú lateral no desmonta Inicio, así que pauso el envío mientras
   // el conductor está en otra pantalla y lo retomo al volver.
   const location = useDriverLocation(isAvailable && isFocused);
   // Las solicitudes también se escuchan solo con Inicio a la vista: al volver,
   // las que vencieron mientras tanto se rechazan solas.
   const requests = useTripRequests(isAvailable && isFocused);
   const remaining = useCountdown(requests.deadlines, REQUEST_TIMEOUT_S, requests.expire);
+  // RF-15: Inicio queda montado mientras exista el menú, así que aquí vive el
+  // token de FCM y el toque en la notificación.
+  usePushNotifications(navigation);
   // El mapa dibuja la solicitud que el conductor tocó; si no tocó ninguna, o la
   // que tocó ya no está, la más antigua.
   const [selectedId, setSelectedId] = useState(null);
@@ -69,7 +73,7 @@ export default function HomeScreen({ navigation }) {
     [driverId, setLastAvailability]
   );
 
-  // Al abrir la app vuelvo al último estado guardado en el teléfono.
+  // RF-10: al abrir la app vuelvo al último estado guardado en el teléfono.
   // Después, si la cuenta deja de estar aprobada o se pierde el permiso de
   // ubicación, paso a No disponible sin esperar al conductor.
   useEffect(() => {
@@ -137,7 +141,7 @@ export default function HomeScreen({ navigation }) {
           </Text>
         ) : null}
 
-        {/* Con la cuenta sin aprobar el botón no se activa y digo por qué. */}
+        {/* HU-02: con la cuenta sin aprobar el botón no se activa y digo por qué. */}
         {!isApproved ? <Text style={formStyles.hint}>{t(`home.reason.${approval}`)}</Text> : null}
         {isAvailable && !request && !requests.error ? (
           <Text style={formStyles.hint}>{t('home.waitingHint')}</Text>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { REQUEST_TIMEOUT_S } from '../config/app';
 import { calculateFare } from '../domain/fare';
+import { expiredBeforeArrival } from '../domain/requestExpiry';
 import { TRIP_STATUS } from '../domain/tripStateMachine';
 import { getRoute } from '../services/routeService';
 import {
@@ -96,14 +97,14 @@ export default function useTripRequests(isListening) {
       (list) => {
         setError(null);
         if (first) {
-          // Al empezar a escuchar, lo que lleva más de 15 s esperando ya venció.
+          // Al empezar a escuchar, rechazo lo que venció mientras nadie miraba.
           // Si el viaje lo creó este teléfono, comparo con la hora en que lo creó
           // y no con la del servidor: un reloj adelantado lo daría por vencido.
           first = false;
-          const limit = Date.now() - REQUEST_TIMEOUT_S * 1000;
+          const now = Date.now();
           for (const trip of list) {
-            const createdAt = createdHereAt(trip.id) ?? trip.createdAt?.getTime();
-            if (createdAt && createdAt < limit) {
+            const createdAt = trip.createdAt?.getTime() ?? null;
+            if (expiredBeforeArrival({ createdHereAt: createdHereAt(trip.id), createdAt, now })) {
               dismiss(trip.id);
               transition(trip.id, S.REQUESTED, S.REJECTED).catch((reason) => {
                 if (!isConflict(reason)) {
