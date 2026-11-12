@@ -6,6 +6,7 @@ import FormField from '../../components/FormField';
 import FormScrollView from '../../components/FormScrollView';
 import SelectField from '../../components/SelectField';
 import FieldError from '../../components/FieldError';
+import PendingRequests from './PendingRequests';
 import { formStyles } from '../../components/formStyles';
 import { PAYMENT_METHODS, SIMULATOR_PLACES } from '../../config/app';
 import { CATEGORIES } from '../../config/pricing';
@@ -48,6 +49,15 @@ export default function SimulatorScreen({ navigation }) {
 
   const errors = validateSimulatedTrip(values, driver?.vehicle?.category);
   const shown = submitted ? errors : {};
+
+  // Si retiré la solicitud de un envío que pasó del tiempo límite, el envío sí
+  // llegó: el siguiente es otra solicitud, con otro id. Reusar el id la crearía
+  // de nuevo con la hora del primer intento, e Inicio la daría por vencida.
+  function forgetWithdrawn(id) {
+    if (tripId.current !== id) return;
+    tripId.current = null;
+    setSendError(null);
+  }
 
   function set(name) {
     return (value) => setValues((current) => ({ ...current, [name]: value }));
@@ -144,6 +154,8 @@ export default function SimulatorScreen({ navigation }) {
         onPress={send}
         disabled={sending}
       />
+
+      <PendingRequests driverId={driverId} onWithdrawn={forgetWithdrawn} />
     </FormScrollView>
   );
 }

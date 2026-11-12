@@ -2,10 +2,15 @@ import {
   collection,
   doc,
   getDocFromServer,
+  getDocsFromServer,
+  limit,
   onSnapshot,
+  query,
+  runTransaction,
   serverTimestamp,
   setDoc,
   updateDoc,
+  where,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { COMMISSION_RATE } from '../config/pricing';
@@ -21,8 +26,18 @@ export function newDriverId() {
   return doc(drivers).id;
 }
 
+// Ingreso con la cédula: el id del conductor con ese documento, o null. Le
+// pregunto al servidor y no a la caché, para no responder «no existe» solo
+// porque este teléfono nunca lo descargó. Una sola igualdad: no pide índice.
+export async function findDriverIdByDocument(documentNumber) {
+  const found = await withTimeout(
+    getDocsFromServer(query(drivers, where('documentNumber', '==', documentNumber), limit(1)))
+  );
+  return found.empty ? null : found.docs[0].id;
+}
+
 // Crea el conductor en estado pendiente. Su id pasa a ser la sesión
-// del teléfono (D-04).
+// del teléfono.
 // `profile` es el documento ya armado con lo que escribió el conductor:
 // fullName, documentNumber, phone, email, gender, birthDate, photoUrl, vehicle,
 // documents y mercadoPagoEmail (Diseño, sección 6). Las fotos van como URL de
@@ -34,11 +49,11 @@ export async function createDriver(driverId, profile) {
   await withTimeout(
     setDoc(doc(drivers, driverId), {
       ...profile,
-      approvalStatus: 'pending',
+      approvalStatus: 'pending', // RF-04
       isAvailable: false,
       location: null,
       fcmToken: null,
-      commissionRateAccepted: COMMISSION_RATE, // El porcentaje que vio al aceptar
+      commissionRateAccepted: COMMISSION_RATE, // VA-20: el porcentaje que vio al aceptar
       termsAcceptedAt: serverTimestamp(),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -91,6 +106,26 @@ export async function setAvailability(driverId, isAvailable) {
 // en Firestore sin nadie detrás.
 export async function setUnavailableBeforeLogout(driverId) {
   await withTimeout(setAvailability(driverId, false));
+}
+
+// CRUD, borrar: el conductor elimina su cuenta. Solo estando No disponible,
+// igual que en la regla de Firestore. Si ya no existe, un intento anterior la
+// borró después del tiempo límite. Sus viajes y sus fotos de Cloudinary quedan
+// (riesgo aceptado en el diseño, §11).
+export async function deleteDriver(driverId) {
+  const ref = doc(drivers, driverId);
+  await withTimeout(
+    runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(ref);
+      if (!snapshot.exists()) return;
+      if (snapshot.data().isAvailable) {
+        const error = new Error('El conductor está Disponible');
+        error.code = 'DRIVER_AVAILABLE';
+        throw error;
+      }
+      transaction.delete(ref);
+    })
+  );
 }
 
 export async function updateLocation(driverId, { latitude, longitude }) {

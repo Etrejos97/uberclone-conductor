@@ -92,6 +92,25 @@ export async function createTrip(tripId, { driverId, origin, destination, catego
   );
 }
 
+// CRUD, borrar: el pasajero retira una solicitud que nadie ha respondido. La
+// transacción la borra solo si sigue en requested, lo mismo que exige la regla
+// de Firestore: si el conductor la aceptó un instante antes, falla sin borrar.
+// Si ya no existe, un intento anterior la borró después del tiempo límite.
+export async function withdrawRequest(tripId) {
+  const ref = doc(trips, tripId);
+  return withTimeout(
+    runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(ref);
+      if (!snapshot.exists()) return;
+      const current = snapshot.data().status;
+      if (current !== TRIP_STATUS.REQUESTED) {
+        throw conflict(`El viaje está en ${current}, no en ${TRIP_STATUS.REQUESTED}`, current);
+      }
+      transaction.delete(ref);
+    })
+  );
+}
+
 // Estado del viaje según el servidor, no la caché, o null si no existe. Sirve
 // después de un tiempo límite: la escritura pudo llegar aunque la promesa no
 // respondiera a tiempo.
@@ -218,7 +237,7 @@ async function payInCash(tripId, allowed, notAllowedMessage) {
   );
 }
 
-// El pasajero califica una sola vez, y solo después de pagar.
+// RF-25: el pasajero califica una sola vez, y solo después de pagar.
 export async function rateTrip(tripId, rating) {
   if (!isValidRating(rating)) throw new Error(`Calificación no válida: ${rating}`);
   const ref = doc(trips, tripId);

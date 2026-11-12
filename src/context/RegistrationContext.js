@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 import { validateRegistration } from '../domain/validators';
 import { photoFieldsFor, toDriverProfile } from '../domain/driverProfile';
-import { createDriver, driverExists, newDriverId } from '../services/driverService';
+import { createDriver, driverExists, findDriverIdByDocument, newDriverId } from '../services/driverService';
 import useDriverForm, { isConnectionError } from '../hooks/useDriverForm';
 import { useSession } from './SessionContext';
 
@@ -54,10 +54,11 @@ const RegistrationContext = createContext(null);
 // Estado del formulario de las tres pestañas. Las pestañas solo leen
 // y escriben aquí. Los valores, los errores y la subida de fotos son de
 // useDriverForm, que también usa Perfil; crear el conductor pasa en este archivo.
-export function RegistrationProvider({ children }) {
+// `documentNumber` es la cédula que el conductor buscó en el ingreso y no existía.
+export function RegistrationProvider({ children, documentNumber = '' }) {
   const { startSession } = useSession();
   const { values, errors, isComplete, uploadErrors, field, uploadPhotos } = useDriverForm(
-    INITIAL_VALUES,
+    { ...INITIAL_VALUES, documentNumber },
     validateRegistration
   );
   const [submitting, setSubmitting] = useState(false);
@@ -87,6 +88,16 @@ export function RegistrationProvider({ children }) {
     setSubmitError(null);
 
     try {
+      // El ingreso busca al conductor por la cédula, así que no puede haber dos
+      // con la misma. Lo reviso antes de subir las fotos, también en un
+      // reintento: ahí la cédula puede ser la del conductor que guardé antes, y
+      // solo la rechazo si es de otro.
+      const owner = await findDriverIdByDocument(values.documentNumber.trim());
+      if (owner && owner !== driverIdRef.current) {
+        setSubmitError('errors.documentTaken');
+        return;
+      }
+
       const photoUrls = await uploadPhotos(values, photoFieldsFor(values));
       if (!photoUrls) {
         setSubmitError('errors.uploadFailedSummary');

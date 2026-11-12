@@ -6,6 +6,8 @@ import { colors, fonts, glow, radius } from '../theme';
 //   primary:   la acción principal de la pantalla, en verde. Una por pantalla.
 //   secondary: las demás acciones, en gris con borde.
 //   danger:    lo que no se deshace (rechazar, cancelar, cerrar sesión), con borde rojo.
+//   dangerText: lo que no se deshace y no es la salida de la pantalla (eliminar
+//              la cuenta), solo el texto en rojo para que no compita con danger.
 // Deshabilitado se ve gris, nunca verde apagado, para que no parezca tocable.
 export default function AppButton({
   title,
@@ -26,7 +28,7 @@ export default function AppButton({
       style={({ pressed }) => [
         styles.base,
         compact && styles.compact,
-        disabled ? styles.disabled : styles[variant],
+        disabled && variant !== 'dangerText' ? styles.disabled : styles[variant],
         pressed && !disabled && pressedStyles[variant],
         style,
       ]}
@@ -54,6 +56,7 @@ const styles = StyleSheet.create({
   primary: { backgroundColor: colors.primary, boxShadow: glow },
   secondary: { backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: colors.border },
   danger: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.danger },
+  dangerText: { backgroundColor: 'transparent', minHeight: 46 },
   disabled: { backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: colors.border },
   text: { fontSize: 16, fontFamily: fonts.bold, textAlign: 'center', letterSpacing: 0.2 },
   compactText: { fontSize: 15 },
@@ -64,10 +67,12 @@ const textStyles = StyleSheet.create({
   primary: { color: colors.onPrimary },
   secondary: { color: colors.text },
   danger: { color: colors.danger },
+  dangerText: { color: colors.danger, fontSize: 15 },
 });
 
 const pressedStyles = StyleSheet.create({
   primary: { backgroundColor: colors.primaryPressed },
   secondary: { backgroundColor: colors.border },
   danger: { backgroundColor: colors.dangerSoft },
+  dangerText: { backgroundColor: colors.dangerSoft },
 });
