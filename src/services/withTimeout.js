@@ -4,7 +4,7 @@ import { SAVE_TIMEOUT_MS } from '../config/app';
 // pendiente hasta que vuelve la conexión. Después de SAVE_TIMEOUT_MS dejo de
 // esperar y lanzo un error con code 'timeout', igual que uploadService.
 // No cancelo la escritura: puede llegar al servidor después, así que quien
-// llama le pregunta al servidor si llegó antes de dar el fallo por bueno
+// llama le pregunta al servidor si llegó antes de dar el fallo por bueno.
 export function withTimeout(promise) {
   let timer;
   const timeout = new Promise((_, reject) => {

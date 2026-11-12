@@ -1,36 +1,69 @@
 rules_version = '2';
 
-
 service cloud.firestore {
   match /databases/{database}/documents {
     function changed() {
       return request.resource.data.diff(resource.data).affectedKeys();
     }
 
+    // Lo que la app escribe del conductor en cualquier estado.
+    function systemKeys() {
+      return ['isAvailable', 'location', 'fcmToken', 'updatedAt'];
+    }
+
+    // Lo que un conductor aprobado cambia sin volver a revisión.
+    function contactKeys() {
+      return ['phone', 'email', 'gender', 'mercadoPagoEmail'];
+    }
+
     match /drivers/{driverId} {
       allow read: if true;
-      allow create: if request.resource.data.approvalStatus == 'pending'
-                    && request.resource.data.balance == 0;
-      // El saldo solo baja desde la app: el cobro en efectivo descuenta la
-      // comisión. Lo que lo sube (un pago con Mercado Pago) lo escribe el
-      // backend con firebase-admin, que no pasa por estas reglas.
-      allow update: if !changed().hasAny(['approvalStatus', 'createdAt'])
-                    && (!changed().hasAny(['balance'])
-                        || request.resource.data.balance < resource.data.balance);
-      allow delete: if false;
+      allow create: if request.resource.data.approvalStatus == 'pending';
+      // La creación y la aceptación de los términos no cambian, y la app solo
+      // escribe approvalStatus para devolver la cuenta a 'pending'. Sin aprobar,
+      // el conductor corrige cualquier dato. Aprobado, cambia el contacto, o
+      // renueva documentos con la misma licencia y vuelve a revisión.
+      allow update: if !changed().hasAny(['createdAt', 'termsAcceptedAt', 'commissionRateAccepted'])
+                    && (!changed().hasAny(['approvalStatus'])
+                        || request.resource.data.approvalStatus == 'pending')
+                    && (resource.data.approvalStatus in ['pending', 'rejected']
+                        || changed().hasOnly(systemKeys().concat(contactKeys()))
+                        || (request.resource.data.approvalStatus == 'pending'
+                            && changed().hasOnly(systemKeys().concat(['documents', 'approvalStatus']))
+                            && request.resource.data.documents.licenseNumber
+                               == resource.data.documents.licenseNumber));
+      // El conductor elimina su cuenta solo estando No disponible: así no
+      // desaparece mientras recibe solicitudes.
+      allow delete: if resource.data.isAvailable == false;
     }
 
     match /trips/{tripId} {
       allow read: if true;
+      // Una solicitud solo se crea para un conductor de su misma categoría, sin
+      // calificación y sin datos de Mercado Pago, que escribe solo el backend.
       allow create: if request.resource.data.status == 'requested'
-                    && request.resource.data.paymentStatus == null;
-      allow update: if !changed().hasAny(['paymentId', 'preferenceId', 'driverId'])
+                    && request.resource.data.paymentStatus == null
+                    && request.resource.data.rating == null
+                    && !request.resource.data.keys().hasAny(['paymentId', 'preferenceId'])
+                    && request.resource.data.category
+                       == get(/databases/$(database)/documents/drivers/$(request.resource.data.driverId))
+                          .data.vehicle.category;
+      // La categoría tampoco cambia después: con ella se eligió al conductor.
+      // Un viaje pagado solo recibe la calificación, una vez y de 1 a 5.
+      allow update: if !changed().hasAny(['paymentId', 'preferenceId', 'driverId', 'category'])
                     && (!changed().hasAny(['paymentStatus'])
                         || request.resource.data.paymentStatus == 'cash')
                     && (!changed().hasAny(['status'])
                         || request.resource.data.status != 'paid'
-                        || request.resource.data.paymentStatus == 'cash');
-      allow delete: if false;
+                        || request.resource.data.paymentStatus == 'cash')
+                    && (resource.data.status != 'paid'
+                        || (changed().hasOnly(['rating'])
+                            && resource.data.rating == null
+                            && request.resource.data.rating is int
+                            && request.resource.data.rating >= 1
+                            && request.resource.data.rating <= 5));
+      // El pasajero retira una solicitud mientras nadie la ha respondido.
+      allow delete: if resource.data.status == 'requested';
     }
   }
 }

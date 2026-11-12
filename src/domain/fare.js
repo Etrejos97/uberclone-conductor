@@ -5,7 +5,7 @@ import {
   MINIMUM_FARE,
   PER_KM,
   PER_MIN,
-} from '../config/pricing.js';
+} from '../config/pricing';
 
 // La misma función calcula la estimación y el cierre del viaje.
 // Con una entrada inválida lanza un error: una tarifa NaN guardada es peor que un error visible.
@@ -29,4 +29,17 @@ export function calculateFare({ distanceKm, durationMin, category, tip = 0 } = {
   const driverEarnings = fare - commission + tip;
 
   return { fare, commission, driverEarnings };
+}
+
+// Los valores finales del viaje, con la misma función de la
+// estimación y la ruta de origen a destino. Guardo el porcentaje aplicado para
+// que un cambio de comisión no altere el historial.
+export function finalCharges(trip) {
+  const charges = calculateFare({
+    distanceKm: trip.route?.distanceKm,
+    durationMin: trip.route?.durationMin,
+    category: trip.category,
+    tip: trip.tip,
+  });
+  return { ...charges, commissionRate: COMMISSION_RATE };
 }

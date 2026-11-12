@@ -23,7 +23,7 @@ UberClone Conductor es una app móvil para Android e iOS, inspirada en Uber, des
 | D-01 | No construyo app de pasajero. Una pantalla de prueba hace de cliente: crea el viaje en estado `requested` y paga en el checkout que abre la misma app. |
 | D-02 | La base de datos es Firestore con el SDK web de `firebase`. |
 | D-03 | Las fotos van a Cloudinary (plan gratuito), porque Firebase Storage puede exigir el plan de pago Blaze. |
-| D-04 | La app no tiene login. La sesión es el id del conductor guardado en AsyncStorage al registrarse: si existe, la app abre en Inicio; si no, en el registro. |
+| D-04 | La app no tiene login con contraseña. El conductor ingresa con su cédula y la sesión es su id guardado en AsyncStorage al ingresar o al registrarse: si existe, la app abre en Inicio; si no, en el ingreso. |
 | D-05 | La pasarela es Mercado Pago Checkout Pro con cuentas y tarjetas de prueba. |
 | D-06 | El backend de pagos es Node.js con Express. Descarto Cloud Functions porque desplegarlas exige el plan de pago Blaze, y no voy a registrar tarjeta en Firebase. |
 | D-07 | El cliente simulado fija la propina al crear la solicitud y califica el viaje después del pago. |
@@ -36,7 +36,7 @@ UberClone Conductor es una app móvil para Android e iOS, inspirada en Uber, des
 ## Actores
 
 - **Conductor**: único usuario de la app.
-- **Cliente simulado**: la pantalla de prueba de D-01. Pide el viaje, paga, deja propina y califica.
+- **Cliente simulado**: la pantalla de prueba de D-01. Pide el viaje o lo retira, paga, deja propina y califica.
 - **Backend de pagos**: servidor Express que crea el cobro con la llave secreta y confirma el resultado con Mercado Pago.
 - **Pasarela**: Mercado Pago, en modo de prueba.
 - **Aprobador**: quien cambia a mano el estado de la cuenta en Firestore.
@@ -69,11 +69,12 @@ Prioridad: **Alta** si la app no cumple su propósito sin él, **Media** si el f
 
 | ID | Requisito | Prioridad |
 |---|---|---|
-| RF-11 | La pantalla de prueba crea un viaje `requested` con origen, destino, categoría, método de pago y propina. | Alta |
+| RF-11 | La pantalla de prueba crea un viaje `requested` con origen, destino, categoría, método de pago y propina. Si la categoría no es la del vehículo del conductor, no crea el viaje y avisa que no hay conductores de esa categoría. | Alta |
 | RF-12 | La solicitud llega en tiempo real y muestra origen, destino, distancia, duración, categoría, método de pago, tarifa estimada y ganancia neta estimada. | Alta |
 | RF-13 | La solicitud tiene un temporizador de 15 segundos; si llega a cero, se rechaza sola. | Alta |
 | RF-14 | El conductor acepta (`accepted`) o rechaza (`rejected`) la solicitud. | Alta |
-| RF-15 | Si la app está en segundo plano, el conductor recibe una notificación de la solicitud nueva con `@react-native-firebase/messaging`. Esto solo funciona en un build propio (el APK o un development build), no en Expo Go. | Alta |
+| RF-15 | Si la app está en segundo plano, el conductor Disponible recibe una notificación de la solicitud nueva por Firebase Cloud Messaging, con `expo-notifications`. Al tocarla, la app abre en Inicio. Esto solo funciona en el APK, no en Expo Go. | Alta |
+| RF-40 | El cliente simulado retira una solicitud que nadie ha respondido: la borra de Firestore y la solicitud sale de Inicio. Si el conductor ya la aceptó o la rechazó, no la borra. | Media |
 | RF-16 | La app calcula distancia y duración con OSRM dos veces por viaje: al crear la solicitud y al aceptarla. Convierte los metros a km y los segundos a minutos antes de pasarlos a `calculateFare`. | Alta |
 
 ### Viaje en curso
@@ -91,7 +92,7 @@ Prioridad: **Alta** si la app no cumple su propósito sin él, **Media** si el f
 |---|---|---|
 | RF-21 | Para cobrar con Mercado Pago, la app envía el `tripId` y el monto al backend, el backend crea la preferencia de pago, la app abre Checkout Pro y el cliente simulado paga con una tarjeta de prueba. | Alta |
 | RF-22 | Cuando Mercado Pago devuelve a la URL de retorno, el backend consulta el pago en Mercado Pago y guarda `paymentStatus`, `paymentId` y `status: paid` en el viaje. | Alta |
-| RF-23 | En pago en efectivo, el conductor marca el cobro como recibido y el viaje pasa a `paid`. | Alta |
+| RF-23 | En pago en efectivo, el conductor marca el cobro como recibido y el viaje pasa a `paid`. Si Mercado Pago rechazó el pago, el conductor también puede cobrarlo en efectivo y el viaje queda como pago en efectivo. | Alta |
 | RF-24 | La pantalla de cobro muestra tarifa final, comisión, ganancia neta y estado del pago (Aprobado, Pendiente, Rechazado o Efectivo), y se actualiza en tiempo real. | Alta |
 | RF-25 | Después del pago, el cliente simulado califica el viaje de 1 a 5 y el viaje guarda el `rating`. | Media |
 
@@ -111,9 +112,11 @@ Prioridad: **Alta** si la app no cumple su propósito sin él, **Media** si el f
 
 | ID | Requisito | Prioridad |
 |---|---|---|
-| RF-33 | El conductor edita sus datos, su vehículo y sus documentos. | Media |
+| RF-33 | El conductor edita su perfil según el estado de su cuenta. Con la cuenta aprobada cambia sus datos de contacto (teléfono, género, correo y correo de Mercado Pago) y renueva la licencia, el SOAT o la revisión técnico-mecánica cuando vencieron o les faltan menos de 7 días; al renovar, la cuenta vuelve a revisión. Con la cuenta pendiente o rechazada corrige todo el registro y la cuenta queda en revisión. La identidad, el vehículo y la foto de perfil no cambian después de la aprobación, y la foto tampoco en una cuenta sin aprobar. Con un documento vencido el conductor no puede ponerse disponible. | Media |
 | RF-34 | El conductor cambia el idioma entre español e inglés. | Media |
-| RF-35 | El conductor cierra sesión: la app borra el id guardado y vuelve al registro. Como no hay login, la cuenta anterior queda en Firestore pero el teléfono ya no la abre. | Media |
+| RF-35 | El conductor cierra sesión: la app borra el id guardado y vuelve al ingreso. La cuenta queda en Firestore y se vuelve a abrir con la cédula. | Media |
+| RF-39 | El conductor ingresa con su cédula. Si hay un conductor con ese documento, la app abre su cuenta; si no, ofrece registrarse con la cédula ya escrita. Desde el ingreso también se llega al registro. | Alta |
+| RF-41 | El conductor elimina su cuenta desde Configuración, después de confirmar, y solo estando No disponible. La app borra su documento de Firestore y vuelve al ingreso. Sus viajes y sus fotos quedan guardados. | Media |
 
 ### Opcionales
 
@@ -143,7 +146,7 @@ Prioridad: **Alta** si la app no cumple su propósito sin él, **Media** si el f
 |---|---|---|
 | VA-01 | Foto de perfil | Obligatoria, de cámara o galería. |
 | VA-02 | Nombre completo | Solo letras y espacios, máximo 50 caracteres. |
-| VA-03 | Documento de identidad | Numérico, de 6 a 10 dígitos. |
+| VA-03 | Documento de identidad | Numérico, de 6 a 10 dígitos. No puede haber otro conductor con el mismo documento. |
 | VA-04 | Celular | Numérico, 10 dígitos. |
 | VA-05 | Fecha de nacimiento | Selector de fecha; mayor de 18 años. |
 | VA-06 | Género | Lista desplegable. |
@@ -152,12 +155,12 @@ Prioridad: **Alta** si la app no cumple su propósito sin él, **Media** si el f
 | VA-09 | Categoría | Económico, XL o Premium. |
 | VA-10 | Placa | Formato ABC123; la paso a mayúsculas antes de validar. |
 | VA-11 | Marca y modelo | Texto, máximo 30 caracteres cada uno. |
-| VA-12 | Año | 4 dígitos, no mayor al año actual. |
+| VA-12 | Año | 4 dígitos, desde 2010 y no mayor al año actual. |
 | VA-13 | Color | Lista desplegable. |
-| VA-14 | Capacidad | Numérica; XL exige mínimo 6. |
+| VA-14 | Capacidad | Entero según la categoría: Económico y Premium exigen 4, XL de 6 a 8. |
 | VA-15 | Foto del vehículo | Obligatoria; debe verse la placa. |
 | VA-16 | Licencia | Número de 6 a 10 dígitos (en Colombia es el de la cédula), foto y vencimiento posterior a hoy. |
-| VA-17 | SOAT | Foto; vencimiento posterior a hoy. |
+| VA-17 | SOAT | Foto; vencimiento posterior a hoy y como máximo un año después del día anterior al registro, que es lo que dura un SOAT comprado ese día. |
 | VA-18 | Revisión técnico-mecánica | Foto y vencimiento posterior a hoy. La pido cuando el vehículo tiene 5 años o más contados desde el año del modelo (Ley 769 de 2002, art. 52, para carros particulares). |
 | VA-19 | Correo de Mercado Pago | Formato de correo válido. |
 | VA-20 | Términos | Checkbox obligatorio, con el porcentaje de comisión visible. |
@@ -192,6 +195,7 @@ Como conductor quiero registrar mis datos, mi vehículo y mis documentos para qu
 - Si dejo vacío el nombre y paso a otro campo, veo el error debajo del nombre y ningún `Alert`.
 - Con la placa `abc123` el campo queda válido y se guarda `ABC123`.
 - Con categoría XL y capacidad 4, veo un error en capacidad y "Enviar registro" sigue deshabilitado.
+- Con categoría Económico y capacidad 5, veo el mismo error. Con capacidad 4 el campo queda válido.
 - Con una fecha de nacimiento de hace 17 años, el campo muestra un error.
 - Con las tres pestañas válidas se habilita el botón, y al enviar veo "Pendiente de aprobación".
 
@@ -205,6 +209,7 @@ Como conductor aprobado quiero ponerme Disponible para recibir viajes.
 **HU-03. Simular una solicitud** (RF-11)
 Como desarrollador quiero crear una solicitud de prueba para probar el flujo sin app de pasajero.
 - Al crearla, aparece en Firestore un viaje `requested` con origen, destino, categoría, método de pago y propina.
+- Con un vehículo Económico, si pido Premium veo «No hay conductores de esa categoría cerca» y en Firestore no aparece ningún viaje nuevo.
 
 **HU-04. Decidir una solicitud** (RF-12 a RF-16)
 Como conductor quiero ver los datos del viaje antes de aceptarlo para decidir si me conviene.
@@ -243,10 +248,31 @@ Como conductor quiero revisar mis viajes anteriores.
 - En un día sin viajes, veo un mensaje en lugar de la lista vacía.
 
 **HU-10. Editar mi perfil** (RF-33 a RF-35)
-Como conductor quiero actualizar mis datos y el idioma.
+Como conductor quiero actualizar mis datos, renovar mis documentos y cambiar el idioma.
 - Al cambiar a inglés, los textos de la app cambian sin reiniciarla.
 - Al editar el perfil se aplican las mismas validaciones del registro.
-- Al cerrar sesión, vuelvo al registro y AsyncStorage queda sin el id del conductor.
+- Con la cuenta aprobada, cambiar mi teléfono o mi correo no me quita la aprobación.
+- Renovar documentos se habilita cuando uno venció o le faltan menos de 7 días, muestra solo esos y al guardar mi cuenta vuelve a revisión.
+- Con un documento vencido no puedo ponerme disponible, y Inicio me lleva a renovarlo.
+- Al cerrar sesión, vuelvo al ingreso y AsyncStorage queda sin el id del conductor.
+
+**HU-11. Ingresar con mi cédula** (RF-39)
+Como conductor quiero entrar a mi cuenta con mi cédula para ver mis viajes desde cualquier teléfono.
+- Con la cédula de un conductor registrado, entro a Inicio con su cuenta, su historial y sus ganancias.
+- Con una cédula que no existe, veo «No encontré un conductor con esa cédula» y, al tocar Registrarme, el registro abre con esa cédula escrita.
+- Si intento registrar una cédula que ya existe, el registro no se crea y me pide ingresar con ella.
+
+**HU-12. Retirar una solicitud** (RF-40)
+Como desarrollador quiero retirar una solicitud que nadie respondió para limpiar mis pruebas sin entrar a la consola de Firebase.
+- En el Cliente simulado veo las solicitudes de este conductor que siguen en `requested`, la más nueva arriba.
+- Al confirmar «Retirar», el viaje desaparece de Firestore y de Inicio.
+- Si el conductor la aceptó o la rechazó antes, el viaje no se borra y veo «El conductor ya respondió esta solicitud y no se puede retirar».
+
+**HU-13. Eliminar mi cuenta** (RF-41)
+Como conductor quiero eliminar mi cuenta para que mi perfil deje de estar en la app.
+- Estando Disponible, «Eliminar mi cuenta» está apagado y dice «Desconéctate en Inicio para eliminar tu cuenta».
+- Al confirmar, mi documento desaparece de Firestore y vuelvo al ingreso con «Eliminé tu cuenta».
+- Con mi cédula ya no entro: el ingreso me ofrece registrarme.
 
 ## Preguntas abiertas
 
